@@ -1,0 +1,5 @@
+# Documentacion de trabajo (specs, planes, handoffs) y estado local del controller: no se versiona
+docs/
+__pycache__/
+.pytest_cache/
+tests/fixtures/anonymize-rules.local.json

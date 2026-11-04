@@ -1,0 +1,93 @@
+{
+  "projectPath": "C:\\demo\\proyecto-demo",
+  "planFile": "2026-10-15-demo-roles-operador.md",
+  "workBranch": "feature/DEMO-1",
+  "startedAt": "2026-10-15T15:20:00.0000000-04:00",
+  "updatedAt": "2026-10-15T16:20:30.0000000-04:00",
+  "globalStatus": "STOPPED",
+  "reason": "Interrumpido con Ctrl+C",
+  "totalLevels": 5,
+  "currentLevel": 2,
+  "levelTaskCounts": [
+    2,
+    3,
+    2,
+    3,
+    1
+  ],
+  "levelHistory": [
+    {
+      "level": 0,
+      "enteredAt": "2026-10-15T15:20:00.0000000-04:00",
+      "completedAt": "2026-10-15T15:34:00.0000000-04:00"
+    },
+    {
+      "level": 1,
+      "enteredAt": "2026-10-15T15:34:00.0000000-04:00",
+      "completedAt": "2026-10-15T15:43:00.0000000-04:00"
+    },
+    {
+      "level": 2,
+      "enteredAt": "2026-10-15T15:43:00.0000000-04:00",
+      "completedAt": "2026-10-15T16:20:30.0000000-04:00"
+    }
+  ],
+  "currentSession": null,
+  "history": [
+    {
+      "iter": 1,
+      "timestamp": "2026-10-15T15:34:00.0000000-04:00",
+      "exitCode": 0,
+      "planStatus": "CONTINUE",
+      "planStatusReason": null,
+      "cause": null,
+      "logPath": "session-1-20261015-152000.log",
+      "streamFile": "session-1-20261015-152000.stream.jsonl",
+      "errFile": "session-1-20261015-152000.err.log",
+      "sessionId": "sess-demo-1",
+      "telemetry": {
+        "model": "opus",
+        "effort": "high",
+        "costUsd": 3.8,
+        "durationMs": 840000,
+        "numTurns": 61
+      }
+    },
+    {
+      "iter": 2,
+      "timestamp": "2026-10-15T15:43:00.0000000-04:00",
+      "exitCode": 0,
+      "planStatus": "CONTINUE",
+      "planStatusReason": null,
+      "cause": null,
+      "logPath": "session-2-20261015-153400.log",
+      "streamFile": "session-2-20261015-153400.stream.jsonl",
+      "errFile": "session-2-20261015-153400.err.log",
+      "sessionId": "sess-demo-2",
+      "telemetry": {
+        "model": "opus",
+        "effort": "high",
+        "costUsd": 4.9,
+        "durationMs": 540000,
+        "numTurns": 88
+      }
+    },
+    {
+      "iter": 3,
+      "timestamp": "2026-10-15T16:20:30.0000000-04:00",
+      "exitCode": -1,
+      "planStatus": null,
+      "planStatusReason": null,
+      "cause": "manual",
+      "logPath": "session-3-20261015-154320.log",
+      "streamFile": "session-3-20261015-154320.stream.jsonl",
+      "errFile": "session-3-20261015-154320.err.log",
+      "sessionId": "sess-demo-3",
+      "telemetry": {
+        "model": "opus",
+        "effort": "high",
+        "costUsd": 4.6
+      }
+    }
+  ]
+}

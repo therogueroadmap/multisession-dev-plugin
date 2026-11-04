@@ -1,0 +1,59 @@
+{
+  "projectPath": "C:\\demo\\proyecto-demo",
+  "planFile": "2026-10-15-demo-roles-operador.md",
+  "startedAt": "2026-10-15T15:20:00.0000000-04:00",
+  "updatedAt": "2026-10-15T16:20:30.0000000-04:00",
+  "globalStatus": "RUNNING",
+  "reason": null,
+  "totalLevels": 5,
+  "currentLevel": 2,
+  "levelTaskCounts": [
+    2,
+    3,
+    2,
+    3,
+    1
+  ],
+  "levelHistory": [
+    {
+      "level": 0,
+      "enteredAt": "2026-10-15T15:20:00.0000000-04:00",
+      "completedAt": "2026-10-15T15:34:00.0000000-04:00"
+    },
+    {
+      "level": 1,
+      "enteredAt": "2026-10-15T15:34:00.0000000-04:00",
+      "completedAt": "2026-10-15T15:43:00.0000000-04:00"
+    },
+    {
+      "level": 2,
+      "enteredAt": "2026-10-15T15:43:00.0000000-04:00",
+      "completedAt": null
+    }
+  ],
+  "currentSession": {
+    "iter": 3,
+    "sessionId": "sess-demo-3",
+    "startedAt": "2026-10-15T15:43:20.0000000-04:00"
+  },
+  "history": [
+    {
+      "iter": 1,
+      "timestamp": "2026-10-15T15:34:00.0000000-04:00",
+      "exitCode": 0,
+      "planStatus": "CONTINUE",
+      "planStatusReason": null,
+      "logPath": "C:\\demo\\proyecto-demo\\docs\\superpowers\\plans\\.driver-logs\\session-1-20261015-152000.log",
+      "sessionId": "sess-demo-1"
+    },
+    {
+      "iter": 2,
+      "timestamp": "2026-10-15T15:43:00.0000000-04:00",
+      "exitCode": 0,
+      "planStatus": "CONTINUE",
+      "planStatusReason": null,
+      "logPath": "C:\\demo\\proyecto-demo\\docs\\superpowers\\plans\\.driver-logs\\session-2-20261015-153400.log",
+      "sessionId": "sess-demo-2"
+    }
+  ]
+}

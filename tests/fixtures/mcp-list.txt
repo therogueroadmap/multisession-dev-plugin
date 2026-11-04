@@ -1,0 +1,35 @@
+Checking MCP server health…
+
+claude.ai Claude Docs: https://api.anthropic.com/v1/pages/mcp - ✔ Connected
+claude.ai Tally: https://api.tally.so/mcp - ✔ Connected
+claude.ai AWS MCP: https://aws-mcp.us-east-1.api.aws/mcp - ✔ Connected
+claude.ai Supabase: https://mcp.supabase.com/mcp - ✔ Connected
+claude.ai Atlassian Rovo: https://mcp.atlassian.com/v1/mcp - ✔ Connected
+plugin:vercel:vercel: https://mcp.vercel.com (HTTP) - ✔ Connected
+plugin:render:render: https://mcp.render.com/mcp (HTTP) - ✔ Connected
+plugin:sentry:sentry: https://mcp.sentry.dev/mcp?utm_source=plugin (HTTP) - ✔ Connected
+plugin:postman:postman: https://mcp.postman.com/mcp (HTTP) - ! Needs authentication
+plugin:productivity:slack: https://mcp.slack.com/mcp (HTTP) - ! Needs authentication
+plugin:productivity:notion: https://mcp.notion.com/mcp (HTTP) - ! Needs authentication
+plugin:productivity:linear: https://mcp.linear.app/mcp (HTTP) - ! Needs authentication
+plugin:productivity:atlassian: https://mcp.atlassian.com/v1/mcp (HTTP) - ! Needs authentication
+plugin:productivity:monday: https://mcp.monday.com/mcp (HTTP) - ! Needs authentication
+plugin:productivity:clickup: https://mcp.clickup.com/mcp (HTTP) - ! Needs authentication
+plugin:productivity:google calendar:  (HTTP) - - Not configured
+plugin:productivity:gmail:  (HTTP) - - Not configured
+plugin:engineering:datadog: https://mcp.datadoghq.com/api/unstable/mcp-server/mcp (HTTP) - ! Needs authentication
+plugin:engineering:google calendar:  (HTTP) - - Not configured
+plugin:engineering:gmail:  (HTTP) - - Not configured
+plugin:product-management:asana: https://mcp.asana.com/v2/mcp (HTTP) - ✘ Failed to connect — Incompatible auth server: does not support dynamic client registration
+plugin:product-management:figma: https://mcp.figma.com/mcp (HTTP) - ! Needs authentication
+plugin:product-management:amplitude: https://mcp.amplitude.com/mcp (HTTP) - ! Needs authentication
+plugin:product-management:amplitude-eu: https://mcp.eu.amplitude.com/mcp (HTTP) - ! Needs authentication
+plugin:product-management:pendo: https://app.pendo.io/mcp/v0/shttp (HTTP) - ! Needs authentication
+plugin:product-management:intercom: https://mcp.intercom.com/mcp (HTTP) - ! Needs authentication
+plugin:product-management:fireflies: https://api.fireflies.ai/mcp (HTTP) - ! Needs authentication
+plugin:product-management:google calendar:  (HTTP) - - Not configured
+plugin:product-management:gmail:  (HTTP) - - Not configured
+plugin:product-management:similarweb: https://mcp.similarweb.com/mcp (HTTP) - ! Needs authentication
+playwright: npx -y @playwright/mcp@latest - ✔ Connected
+pencil: <home>\.pencil\mcp\out\mcp-server-windows-x64.exe --app visual_studio_code --agent claudeCodeCLI - ✔ Connected
+Atlassian: https://mcp.atlassian.com/v1/mcp/authv2 (HTTP) - ✔ Connected

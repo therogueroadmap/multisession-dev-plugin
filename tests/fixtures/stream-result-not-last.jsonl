@@ -1,0 +1,7 @@
+{"type":"system","subtype":"hook_started","hook_id":"h1","hook_name":"SessionStart","hook_event":"SessionStart","uuid":"u1","session_id":"s1"}
+{"type":"system","subtype":"init","cwd":"C:\\repo","session_id":"s1","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"bypassPermissions"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Nivel 1 cerrado."}]},"parent_tool_use_id":null,"session_id":"s1","uuid":"u2"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"texto de un subagente"}]},"parent_tool_use_id":"toolu_1","session_id":"s1","uuid":"u3"}
+{"type":"assistant","message":{"role":"assistant","content":[{"type":"thinking","thinking":"x"},{"type":"text","text":"Resumen.\nPLAN_STATUS: CONTINUE"}]},"parent_tool_use_id":null,"session_id":"s1","uuid":"u4"}
+{"type":"result","subtype":"success","is_error":false,"terminal_reason":"completed","duration_ms":8296,"num_turns":3,"result":"Resumen.\nPLAN_STATUS: CONTINUE","total_cost_usd":0.0587216,"usage":{"input_tokens":20,"cache_creation_input_tokens":24991,"cache_read_input_tokens":59096,"output_tokens":562},"subagent_stats":{"failed":1,"killed":{"parent":1,"user":0,"system":2}},"session_id":"s1","uuid":"u5"}
+{"type":"system","subtype":"ui_status","plugin":"x","text":"listo","uuid":"u6","session_id":"s1"}

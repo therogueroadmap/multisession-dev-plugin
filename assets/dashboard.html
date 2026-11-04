@@ -1,0 +1,2613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Plan Session Driver</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #0b0f14; --panel: #11161d; --panel2: #161b22; --line: #21262d; --line2: #30363d;
+    --text: #e6edf3; --muted: #8b949e; --dim: #6e7681;
+    --blue: #58a6ff; --green: #3fb950; --amber: #d29922; --red: #f85149; --purple: #bc8cff; --teal: #39c5cf;
+  }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; background: var(--bg); color: var(--text); font-size: 14px; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 24px 40px; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+  h1 { font-size: 1.2rem; margin: 0 0 4px; }
+  .meta { color: var(--muted); font-size: 0.85rem; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line2); background: var(--panel2); color: var(--text); cursor: pointer; font-size: 0.85rem; }
+  .btn:hover { background: #21262d; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin: 16px 0; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  .kpi .label { color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: .04em; }
+  .kpi .value { font-size: 1.15rem; font-weight: 600; margin-top: 4px; overflow-wrap: anywhere; }
+  .kpi .sub { color: var(--muted); font-size: 0.75rem; margin-top: 2px; }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 999px; font-weight: 600; font-size: 0.8rem; }
+  .badge-RUNNING { background: #1f6feb33; color: var(--blue); }
+  .badge-DONE { background: #23863633; color: var(--green); }
+  .badge-BLOCKED { background: #9e6a0333; color: var(--amber); }
+  .badge-FAILED { background: #da363333; color: var(--red); }
+  .badge-STOPPED { background: #6e768133; color: var(--muted); }
+  .phase-badge { background: #bc8cff33; color: var(--purple); margin-left: 10px; vertical-align: middle; }
+  .perm-badge { margin-left: 10px; vertical-align: middle; }
+  .perm-profile { background: #6e768133; color: var(--muted); }
+  .perm-unsafe { background: #9e6a0333; color: var(--amber); border: 1px solid var(--amber); }
+  .cost-bar { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .cost-bar-fill { height: 100%; width: 0%; background: var(--blue); }
+  .sev-critical { color: var(--red); }
+  .badge-STOPPED_MAX_ITERATIONS { background: #6e768133; color: var(--muted); }
+  .badge-PAUSED { background: #39c5cf33; color: var(--teal); }
+  .badge-AWAITING { background: #9e6a0333; color: var(--amber); border: 1px solid var(--amber); }
+  .pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--green); margin-right: 6px; animation: p 1.4s infinite; }
+  @keyframes p { 0%,100% { opacity: 1 } 50% { opacity: .3 } }
+  .liveness.warn { color: var(--amber); font-weight: 600; }
+  .meter { height: 6px; background: var(--line); border-radius: 4px; overflow: hidden; margin-top: 6px; }
+  .meter > div { height: 100%; }
+
+  .pipeline { display: flex; align-items: center; overflow-x: auto; white-space: nowrap; padding: 4px 0 12px; }
+  .pipeline-node { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; border: 1px solid var(--line2); background: var(--panel2); font-size: 0.82rem; flex-shrink: 0; }
+  .pipeline-connector { flex-shrink: 0; width: 22px; height: 1px; background: var(--line2); }
+  .node-icon { font-weight: 700; }
+  .node-duration { color: var(--muted); font-size: 0.75rem; }
+  .node-pending { color: var(--muted); }
+  .node-pending .node-icon { color: var(--dim); }
+  .node-success { color: var(--text); }
+  .node-success .node-icon { color: var(--green); }
+  .node-running { color: var(--text); border-color: #1f6feb; }
+  .node-running .node-icon { color: var(--blue); animation: p 1.2s ease-in-out infinite; }
+  .node-error { color: var(--text); border-color: #da3633; }
+  .node-error .node-icon { color: var(--red); }
+  .node-paused { color: var(--text); border-color: var(--teal); }
+  .node-paused .node-icon { color: var(--teal); }
+  .node-awaiting { color: var(--text); border-color: var(--amber); }
+  .node-awaiting .node-icon { color: var(--amber); }
+  .progress-track { background: var(--line); border-radius: 6px; height: 6px; margin: 0 0 16px; overflow: hidden; }
+  .progress-fill { background: var(--blue); height: 100%; width: 0%; transition: width 0.4s ease; }
+
+  .current-session { margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--line2); font-size: 0.85rem; display: none; }
+  .cmd-text { color: #79c0ff; font-family: ui-monospace, monospace; word-break: break-all; }
+  .copy-btn { margin-left: 8px; padding: 2px 8px; font-size: 0.78rem; border-radius: 4px; border: 1px solid var(--line2); background: #21262d; color: var(--text); cursor: pointer; }
+  .copy-btn:hover { background: var(--line2); }
+  .pollbar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 0 0 12px; font-size: 0.85rem; color: var(--amber); }
+  .pollbar:empty { display: none; }
+  .stale-stop-notice { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--amber); }
+  .final-panel { --final-color: var(--muted); margin: 0 0 16px; padding: 12px 16px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line2); border-left: 4px solid var(--final-color); }
+  .final-panel.final-BLOCKED { --final-color: var(--amber); }
+  .final-panel.final-AWAITING { --final-color: var(--amber); }
+  .final-panel.final-FAILED { --final-color: var(--red); }
+  .final-panel.final-STOPPED, .final-panel.final-STOPPED_MAX_ITERATIONS { --final-color: var(--muted); }
+  .final-panel h2 { font-size: 0.95rem; margin: 0 0 10px; color: var(--final-color); }
+  .final-row { margin: 0 0 8px; overflow-wrap: anywhere; }
+  .final-label { color: var(--muted); font-size: 0.8rem; margin-right: 6px; }
+  .final-panel pre { margin: 4px 0 0; padding: 8px 10px; max-height: 220px; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; font-size: 0.78rem; white-space: pre-wrap; word-break: break-all; }
+
+  /* 2b: barra de acciones, formulario de parametros y panel Acciones */
+  .control-bar { margin: 0 0 12px; padding: 10px 12px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line2); }
+  .control-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .control-msg { color: var(--muted); font-size: 0.85rem; overflow-wrap: anywhere; }
+  .control-disabled { color: var(--amber); font-size: 0.85rem; }
+  .paused-info { color: var(--teal); font-size: 0.85rem; margin-top: 6px; }
+  /* 2c: espera de decision, cuadro de respuesta y menu Abrir */
+  .awaiting-info { color: var(--amber); font-size: 0.85rem; margin-top: 6px; white-space: pre-line; overflow-wrap: anywhere; }
+  .answer-form { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .answer-form textarea { width: 100%; min-height: 90px; box-sizing: border-box; resize: vertical; background: var(--panel2); color: var(--text); border: 1px solid var(--line2); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  .answer-note { margin: 0; color: var(--muted); font-size: 0.78rem; }
+  .answer-buttons { display: flex; gap: 8px; }
+  .open-menu { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .params-form { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px 12px; }
+  .params-form label { display: flex; flex-direction: column; gap: 3px; color: var(--muted); font-size: 0.78rem; }
+  .params-form input, .params-form select { background: var(--panel2); color: var(--text); border: 1px solid var(--line2); border-radius: 6px; padding: 5px 8px; font: inherit; }
+  .params-buttons { grid-column: 1 / -1; display: flex; gap: 8px; }
+  .actions-list { margin: 0; padding-left: 18px; font-size: 0.82rem; overflow-wrap: anywhere; }
+  .actions-list li { margin: 0 0 4px; }
+  /* Ola 3: tareas del plan (I7) y pendiente de integrar (D3) */
+  .tk-level { margin: 0 0 8px; }
+  .tk-level summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+  .tk-item { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 6px 0 0 14px; font-size: 0.85rem; overflow-wrap: anywhere; }
+  .tk-id { font-weight: 600; }
+  .tk-done { background: #23863633; color: var(--green); }
+  .tk-progress { background: #1f6feb33; color: var(--blue); }
+  .tk-blocked { background: #da363333; color: var(--red); }
+  .tk-pending { background: #6e768133; color: var(--muted); }
+  .tk-hash { display: inline-flex; align-items: center; }
+  .ig-ready { background: #23863633; color: var(--green); }
+  .ig-attention { background: #9e6a0333; color: var(--amber); }
+  .ig-steps { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.85rem; }
+  .ig-steps li { margin: 0 0 4px; }
+
+  .grid { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin-bottom: 16px; min-width: 0; }
+  .card h2 { font-size: 0.95rem; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; }
+  .card select { width: 100%; background: var(--panel2); color: var(--text); border: 1px solid var(--line2); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  .activity-meta { margin-top: 8px; color: var(--muted); font-size: 0.82rem; }
+
+  .tag { font-size: 0.7rem; font-weight: 400; color: var(--muted); border: 1px solid var(--line2); border-radius: 999px; padding: 1px 8px; }
+  .empty { color: var(--muted); font-size: 0.82rem; }
+
+  /* V1 y V3: tablero por tarea */
+  .task { display: grid; grid-template-columns: 90px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
+  .task:last-child { border-bottom: none; }
+  .task .name { font-weight: 600; overflow-wrap: anywhere; }
+  .stages { display: flex; gap: 4px; flex-wrap: wrap; }
+  .st { font-size: 0.74rem; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line2); white-space: nowrap; }
+  .st-ok { background: #23863622; color: var(--green); border-color: #23863655; }
+  .st-ko { background: #da363322; color: var(--red); border-color: #da363355; }
+  .st-run { background: #1f6feb22; color: var(--blue); border-color: #1f6feb; animation: p 1.6s infinite; }
+  .st-pend { color: var(--dim); border-style: dashed; }
+  .st-unclosed { background: transparent; color: var(--muted); border: 1px dashed var(--dim); }
+  .rework { font-size: 0.75rem; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+  .rw-warn { background: #9e6a0333; color: var(--amber); }
+  .rw-ok { background: #23863622; color: var(--green); }
+
+  /* V2 y V6: timeline */
+  .tl { position: relative; margin-top: 4px; }
+  .tl-row { display: grid; grid-template-columns: 60px 1fr; align-items: center; height: 34px; }
+  .tl-label { color: var(--muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; }
+  .tl-track { position: relative; height: 22px; background: repeating-linear-gradient(90deg, transparent 0, transparent calc(12.5% - 1px), var(--line) calc(12.5% - 1px), var(--line) 12.5%); border-radius: 4px; }
+  .bar { position: absolute; top: 2px; height: 18px; border-radius: 3px; overflow: hidden; cursor: default; }
+  .t-impl { background: var(--blue); } .t-rev { background: var(--purple); } .t-fix { background: var(--amber); }
+  .t-other { background: #7d8da1; }
+  .bar.ko { box-shadow: inset 0 -3px 0 var(--red); }
+  .bar.live { background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.18) 0 6px, transparent 6px 12px); animation: slide 1s linear infinite; background-size: 17px 17px; }
+  .bar.unclosed { background-image: none; animation: none; border: 1px dashed var(--text); opacity: .7; }
+  @keyframes slide { to { background-position: 17px 0; } }
+  .tl-overlay { position: absolute; left: 60px; right: 0; top: 0; bottom: 0; pointer-events: none; }
+  .tl-axis { display: grid; grid-template-columns: 60px 1fr; margin-top: 4px; }
+  .ticks { position: relative; height: 16px; color: var(--dim); font-size: 0.7rem; }
+  .ticks span { position: absolute; transform: translateX(-50%); }
+  .commit { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--green); pointer-events: auto; }
+  .action-mark { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: repeating-linear-gradient(180deg, var(--teal) 0 4px, transparent 4px 7px); pointer-events: auto; }
+  .now { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--red); }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.75rem; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+  /* V4: actividad en vivo */
+  .act { padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 0.83rem; }
+  .act:last-child { border-bottom: none; }
+  .act .who { display: flex; justify-content: space-between; gap: 8px; }
+  .act .who b { color: var(--purple); overflow-wrap: anywhere; }
+  .act .what { color: var(--muted); margin-top: 3px; font-family: ui-monospace, monospace; font-size: 0.76rem; overflow-wrap: anywhere; }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); font-size: 0.82rem; }
+  th { color: var(--muted); font-weight: 500; }
+  a { color: var(--blue); text-decoration: none; }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+    .kpis { grid-template-columns: repeat(2, 1fr); }
+    .wrap { padding: 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Plan Session Driver</h1>
+      <span class="badge phase-badge" id="phase-badge" style="display: none"></span>
+      <span class="badge perm-badge" id="perm-badge" style="display: none"></span>
+      <div class="meta" id="meta">Cargando estado...</div>
+    </div>
+    <div class="actions">
+      <button class="btn" id="notify-toggle" type="button">Notificaciones: desactivadas</button>
+    </div>
+  </header>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="label">Estado</div>
+      <div class="value"><span class="badge" id="globalStatus">-</span></div>
+      <div class="sub liveness" id="liveness" style="display: none"></div>
+    </div>
+    <div class="kpi">
+      <div class="label">Sesión</div>
+      <div class="value" id="kpi-session">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Tiempo</div>
+      <div class="value" id="kpi-elapsed">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Sesiones</div>
+      <div class="value" id="kpi-sessions">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Reintentos</div>
+      <div class="value" id="kpi-retries">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Fin estimado</div>
+      <div class="value" id="kpi-eta">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Costo</div>
+      <div class="value" id="totalCost">—</div>
+      <div class="sub" id="totalCostSub"></div>
+      <div class="cost-bar" id="costBar" style="display: none"><div class="cost-bar-fill" id="costBarFill"></div></div>
+    </div>
+    <div class="kpi" id="kpi-quota5h">
+      <div class="label">Cuota 5 h</div>
+      <div class="value">sin datos</div>
+    </div>
+    <div class="kpi" id="kpi-quota7d">
+      <div class="label">Cuota 7 días</div>
+      <div class="value">sin datos</div>
+    </div>
+  </div>
+
+  <div class="control-bar" id="control-bar" style="display: none">
+    <div class="control-row">
+      <button class="btn" id="act-pause" type="button" style="display: none">Pausar</button>
+      <button class="btn" id="act-resume" type="button" style="display: none">Reanudar</button>
+      <button class="btn" id="act-stop" type="button" style="display: none">Detener</button>
+      <button class="btn" id="act-params" type="button" style="display: none">Parámetros</button>
+      <button class="btn" id="act-answer" type="button" style="display: none">Responder</button>
+      <button class="btn" id="act-retry-session" type="button" style="display: none">Reintentar sesión</button>
+      <button class="btn" id="act-retry-level" type="button" style="display: none">Reintentar nivel</button>
+      <button class="btn" id="act-open" type="button" style="display: none">Abrir</button>
+      <span class="control-msg" id="control-msg"></span>
+    </div>
+    <div class="control-disabled" id="control-disabled" style="display: none"></div>
+    <div class="paused-info" id="paused-info" style="display: none"></div>
+    <div class="awaiting-info" id="awaiting-info" style="display: none"></div>
+    <div class="answer-form" id="answer-form" style="display: none">
+      <textarea id="answer-text" maxlength="4000" aria-label="Respuesta para el driver"></textarea>
+      <p class="answer-note" id="answer-note"></p>
+      <div class="answer-buttons">
+        <button class="btn" id="answer-send" type="button">Responder y continuar</button>
+        <button class="btn" id="answer-cancel" type="button">Cancelar</button>
+      </div>
+    </div>
+    <div class="open-menu" id="open-menu" style="display: none">
+      <button class="btn" id="open-folder" type="button">Abrir carpeta</button>
+      <button class="btn" id="open-log" type="button">Abrir log</button>
+      <button class="btn" id="open-terminal" type="button">Abrir terminal</button>
+    </div>
+    <form class="params-form" id="params-form" style="display: none" onsubmit="return false">
+      <label>Modelo<input type="text" id="p-model" autocomplete="off" /></label>
+      <label>Esfuerzo por nivel<select id="p-levelEffort"><option value="">—</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option></select></label>
+      <label>Esfuerzo de cierre<select id="p-closeEffort"><option value="">—</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option><option value="xhigh">xhigh</option><option value="max">max</option></select></label>
+      <label>Reintentos transitorios (0-5)<input type="number" id="p-maxTransientRetries" step="any" /></label>
+      <label>Espera entre reintentos, s (10-3600)<input type="number" id="p-retryBackoffSeconds" step="any" /></label>
+      <label>Corte por inactividad, min (5-240)<input type="number" id="p-livenessTimeoutMinutes" step="any" /></label>
+      <label>Tope de costo, USD (0-1000; 0 = sin tope)<input type="number" id="p-maxCostUsd" step="any" /></label>
+      <label>Espera de decisión, min (0-1440)<input type="number" id="p-awaitDecisionMinutes" step="any" /></label>
+      <div class="params-buttons">
+        <button class="btn" id="params-send" type="button">Enviar cambios</button>
+        <button class="btn" id="params-cancel" type="button">Cancelar</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="pipeline" id="pipeline-header"></div>
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="current-session" id="currentSession"></div>
+  <div class="pollbar">
+    <span id="poll-state"></span>
+    <button class="btn" id="refresh-now" type="button" style="display: none">Actualizar ahora</button>
+    <div class="stale-stop-notice" id="stale-stop-notice" style="display: none"><span id="stale-stop-text"></span> <button class="btn" id="stale-retry" type="button">Volver a consultar</button></div>
+  </div>
+  <div class="final-panel" id="final-panel" style="display: none">
+    <h2>Detalle del estado</h2>
+    <div class="final-row"><span class="final-label">Motivo:</span><span id="reason"></span></div>
+    <div class="final-row"><span class="final-label">Causa:</span><span id="final-cause"></span></div>
+    <div class="final-row"><span class="final-label">Razón del plan:</span><span id="final-plan-reason"></span></div>
+    <div class="final-row"><span class="final-label">Acción sugerida:</span><span id="final-action"></span></div>
+    <div class="final-row"><span class="final-label">Reanudar la sesión:</span><span id="final-resume"></span></div>
+    <div class="final-row"><span class="final-label">Últimas líneas del log:</span><pre id="final-log">sin datos</pre></div>
+    <div class="final-row"><span class="final-label">Últimas líneas de err.log:</span><pre id="final-err">sin datos</pre></div>
+  </div>
+  <div class="card" id="final-review-panel" style="display: none">
+    <h2>Revisión final</h2>
+    <div id="final-review-body"></div>
+    <pre id="final-review-raw" style="display: none"></pre>
+  </div>
+  <div class="card" id="integration-panel" style="display: none">
+    <h2>Pendiente de integrar</h2>
+    <div id="integration-body"></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card" id="plan-tasks-panel" style="display: none">
+        <h2>Tareas del plan</h2>
+        <div id="plan-tasks-body"></div>
+      </div>
+      <div class="card" id="tasks-panel">
+        <h2>Tareas de la sesión <span class="tag">inferido</span></h2>
+        <div class="empty">sin datos</div>
+      </div>
+      <div class="card" id="timeline">
+        <h2>Línea de tiempo</h2>
+        <div class="empty">sin datos</div>
+      </div>
+      <div class="card">
+        <h2>Sesiones</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Sesión</th><th>Hora</th><th>Duración</th><th>Turnos</th><th>Tokens entrada</th><th>Tokens salida</th><th>Caché</th><th>Resultado</th><th>Modelo / effort</th><th>Coste</th><th>Log</th><th>Comando</th></tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <h2>Sesión elegida</h2>
+        <select id="session-select" aria-label="Sesión a consultar"><option value="">Sin sesiones</option></select>
+        <div class="activity-meta" id="activity-meta">sin datos de actividad</div>
+      </div>
+      <div class="card" id="git-panel" style="display: none">
+        <h2>Rama</h2>
+        <div id="git-body"></div>
+      </div>
+      <div class="card panel" id="actions-panel">
+        <h2>Acciones</h2>
+        <ul class="actions-list" id="actions-list"><li class="empty">Sin acciones</li></ul>
+      </div>
+      <div class="card" id="live-activity">
+        <h2>Actividad en vivo</h2>
+        <div class="empty">Sin subagentes activos</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+    // == puro:inicio ==
+    const POLL_MS = 4000;
+    // H1 bis: tras este tiempo seguido con el heartbeat vencido, la pagina deja de consultar.
+    const STALE_STOP_MS = 600000;
+    const LIVENESS_WARN_MS = 300000;
+    const FINAL_STATUSES = ['DONE', 'BLOCKED', 'FAILED', 'STOPPED', 'STOPPED_MAX_ITERATIONS'];
+    // 2b: estados en los que el driver sigue vivo (la corrida no termino).
+    const LIVE_STATUSES = ['RUNNING', 'PAUSED', 'AWAITING'];
+    // Plazo para que el driver confirme una orden en status.control.last.
+    const CONTROL_CONFIRM_MS = 30000;
+    const ACTION_LABELS = { pause: 'Pausar', resume: 'Reanudar', stop: 'Detener', 'set-params': 'Parámetros',
+                            answer: 'Responder', retry: 'Reintentar', open: 'Abrir' };
+    const ANSWER_MAX = 4000;
+    const CONTROL_BODY_MAX = 16384;
+    const TERMINAL_NOTE = 'Si continúas la sesión en la terminal, detén la corrida antes de responder aquí: serían dos continuaciones de la misma conversación.';
+    const STOP_CONFIRM_MS = 5000;
+    const DISABLED_TEXT = 'Acciones deshabilitadas: abre la URL con token que imprimió el driver';
+
+    // Fecha ISO -> milisegundos; ausente o invalida cuenta como ausente (null).
+    function parseMs(s) {
+      if (s == null || s === '') return null;
+      const ms = Date.parse(s);
+      return isNaN(ms) ? null : ms;
+    }
+
+    function isFinalStatus(globalStatus) {
+      return FINAL_STATUSES.indexOf(globalStatus) !== -1;
+    }
+
+    // Devuelve el retardo hasta el siguiente poll de status, o null para detener el polling.
+    function nextPollDelay(httpStatus, data, activity) {
+      if (httpStatus === 200 && data && isFinalStatus(data.globalStatus)) return null;
+      // Driver muerto con el status huerfano en un estado vivo: nada cambiara solo, se deja de consultar.
+      // Excepcion: heartbeat_vencido puede ser momentaneo (p. ej. suspension del equipo); se sigue consultando.
+      if (httpStatus === 200 && data && LIVE_STATUSES.indexOf(data.globalStatus) !== -1 &&
+          activity && activity.driver && activity.driver.alive === false &&
+          activity.driver.reason !== 'heartbeat_vencido') {
+        return null;
+      }
+      return POLL_MS;
+    }
+
+    // H1 bis: reloj del heartbeat vencido. Devuelve { since, stop }; since es el inicio (ms) del
+    // heartbeat vencido seguido, o null si no aplica. Sin respuesta (httpStatus distinto de 200 o sin data) el reloj no se mueve.
+    function staleStopState(since, httpStatus, data, driver, nowMs) {
+      if (httpStatus !== 200 || !data) return { since: since, stop: false };
+      if (LIVE_STATUSES.indexOf(data.globalStatus) !== -1 &&
+          driver && driver.alive === false && driver.reason === 'heartbeat_vencido') {
+        const s = (since == null ? nowMs : since);
+        return { since: s, stop: nowMs - s >= STALE_STOP_MS };
+      }
+      return { since: null, stop: false };
+    }
+
+    // H1 bis: texto del aviso con la hora local (HH:MM) en que empezo el heartbeat vencido.
+    function staleStopText(sinceMs) {
+      const d = new Date(sinceMs);
+      const two = (n) => (n < 10 ? '0' : '') + n;
+      return 'El driver no da señal desde las ' + two(d.getHours()) + ':' + two(d.getMinutes()) + '; puede estar colgado.';
+    }
+
+    // Aviso del driver muerto: null salvo un estado vivo (LIVE_STATUSES) con driver.alive === false.
+    function driverDeadInfo(data, driver) {
+      if (!data || LIVE_STATUSES.indexOf(data.globalStatus) === -1 || !driver || driver.alive !== false) return null;
+      const reason = (typeof driver.reason === 'string' && driver.reason !== '') ? driver.reason : 'desconocido';
+      return {
+        reason: reason,
+        badge: data.globalStatus + ' · sin driver',
+        message: 'El driver no responde (status huérfano en ' + data.globalStatus + ', motivo: ' + reason +
+          '). Revisa la consola donde corría o relanza el driver.'
+      };
+    }
+
+    function shouldNotifyDriverDead(prevAlive, newAlive, isFirstPoll) {
+      return !isFirstPoll && prevAlive !== false && newAlive === false;
+    }
+
+    // Motivo de la espera (p. ej. reintento en curso) que el driver deja en status.reason mientras corre.
+    function waitReasonText(status) {
+      if (!status || LIVE_STATUSES.indexOf(status.globalStatus) === -1) return null;
+      return (typeof status.reason === 'string' && status.reason.trim() !== '') ? status.reason : null;
+    }
+
+    function shouldNotify(prevStatus, newStatus, isFirstPoll) {
+      return !isFirstPoll && LIVE_STATUSES.indexOf(prevStatus) !== -1 &&
+        (isFinalStatus(newStatus) || (newStatus === 'AWAITING' && prevStatus !== 'AWAITING'));
+    }
+
+    function livenessInfo(status, activity, nowMs) {
+      if (!status || status.globalStatus !== 'RUNNING') return null;
+      const cs = status.currentSession || {};
+      const progressMs = parseMs(cs.lastProgressAt);
+      const eventMs = parseMs(activity && activity.lastEventAt);
+      const known = [progressMs, eventMs].filter(x => x != null);
+      const lastActivityMs = known.length ? Math.max.apply(null, known) : null;
+      const secondsAgo = lastActivityMs == null ? null : Math.max(0, Math.round((nowMs - lastActivityMs) / 1000));
+      const remainingMs = (progressMs != null && typeof cs.livenessTimeoutMinutes === 'number')
+        ? progressMs + cs.livenessTimeoutMinutes * 60000 - nowMs : null;
+      return { lastActivityMs, secondsAgo, remainingMs, warn: remainingMs != null && remainingMs < LIVENESS_WARN_MS };
+    }
+
+    function elapsedMs(status, nowMs) {
+      const start = parseMs(status && status.startedAt);
+      if (start == null) return null;
+      const end = status.globalStatus === 'RUNNING' ? nowMs : parseMs(status.updatedAt);
+      return end == null ? null : end - start;
+    }
+
+    function quotaView(quota) {
+      if (!quota) return null;
+      const win = w => w ? {
+        pct: w.utilization == null ? null : Math.round(w.utilization * 100),
+        resetsAt: w.resetsAt || null
+      } : null;
+      return { fiveHour: win(quota.fiveHour), sevenDay: win(quota.sevenDay), observedAt: quota.observedAt || null };
+    }
+
+    // Sufijo de un reintento (D1): vacio salvo attempt entero > 0.
+    function attemptLabel(ev) {
+      return ev && Number.isInteger(ev.attempt) && ev.attempt > 0 ? ' · reintento ' + ev.attempt : '';
+    }
+
+    function sessionOptions(status) {
+      const history = (status && status.history) || [];
+      // Una opcion por iter, tomada del ultimo elemento (el ultimo intento).
+      const lastByIter = new Map();
+      history.forEach(h => lastByIter.set(h.iter, h));
+      const options = Array.from(lastByIter.values())
+        .map(h => ({ iter: h.iter, label: 'Sesión ' + h.iter + attemptLabel(h), live: false }))
+        .sort((a, b) => a.iter - b.iter);
+      // Con reintento en curso, history ya trae el intento fallido del mismo iter:
+      // la sesion viva reemplaza esa opcion (etiqueta y live correctos) en vez de duplicarla.
+      const cs = status && status.currentSession;
+      if (cs && cs.iter != null) {
+        const live = { iter: cs.iter, label: 'Sesión ' + cs.iter + attemptLabel(cs) + ' (en curso)', live: status.globalStatus === 'RUNNING' };
+        const idx = options.findIndex(o => o.iter === cs.iter);
+        if (idx >= 0) options[idx] = live;
+        else options.push(live);
+        options.sort((a, b) => a.iter - b.iter);
+      }
+      return options;
+    }
+
+    function defaultSessionIter(status) {
+      const cs = status && status.currentSession;
+      if (cs && cs.iter != null) return cs.iter;
+      const history = (status && status.history) || [];
+      return history.length ? history[history.length - 1].iter : null;
+    }
+
+    function activityUrl(iter) {
+      return iter == null ? '/activity.json' : '/activity.json?session=' + iter;
+    }
+
+    const PANEL_STATUSES = ['BLOCKED', 'FAILED', 'STOPPED', 'STOPPED_MAX_ITERATIONS', 'AWAITING'];
+
+    // Ultimo segmento de una ruta con / o \ (un driver viejo guardaba la ruta completa); null si queda vacio.
+    function logLeaf(path) {
+      if (path == null || path === '') return null;
+      const leaf = String(path).split(/[\\\/]/).pop();
+      return leaf === '' ? null : leaf;
+    }
+
+    // Accion sugerida segun estado final y causa del ultimo evento; la primera coincidencia gana.
+    function suggestedAction(globalStatus, cause) {
+      if (globalStatus === 'AWAITING') {
+        return 'La corrida espera tu decisión: responde, reintenta o detén desde la barra de acciones antes de que venza el plazo.';
+      }
+      if (globalStatus === 'BLOCKED') {
+        if (cause === 'pregunta_sin_marca') {
+          return 'La sesión terminó con una pregunta. Respóndela en una sesión interactiva (claude --resume) y relanza el driver con el mismo comando.';
+        }
+        if (cause === 'continue_sin_avance') {
+          return 'La sesión dijo CONTINUE sin avanzar el checkpoint. Revisa el log y .controller-state.json, corrige y relanza el driver.';
+        }
+        return 'El plan pidió una decisión (ver motivo). Decide, ajusta el plan o responde en una sesión interactiva, y relanza el driver con el mismo comando.';
+      }
+      if (globalStatus === 'FAILED') {
+        if (cause === 'truncada_background') {
+          return 'La sesión se cortó por el techo de background de claude -p. Relanza con -BackgroundWaitCeilingMs 0. Ese parámetro vale 0 por defecto, así que el corte implica un valor heredado de CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS: revisa esa variable de entorno y relanza.';
+        }
+        if (cause === 'colgada') {
+          return 'La sesión superó el corte por inactividad. Revisa en el log qué quedó colgado; si era legítimo, sube -LivenessTimeoutMinutes y relanza.';
+        }
+        if (cause === 'exit_no_cero') {
+          return 'claude salió con error. Revisa err.log (autenticación, red o cuota) y relanza.';
+        }
+        if (cause === 'indeterminado') {
+          return 'Varias sesiones sin marca ni avance. Revisa el log de la última sesión antes de relanzar.';
+        }
+        if (cause === 'error_driver') {
+          return 'El driver falló durante la corrida. Revisa el motivo, el log y err.log antes de relanzar.';
+        }
+        if (cause === 'perfil_invalido') {
+          return 'Revisa scripts/profiles/plan.settings.json en el runner; relanzar con -UnsafeSkipPermissions quita todas las restricciones.';
+        }
+        return 'El driver falló. Revisa el motivo, el log y err.log antes de relanzar.';
+      }
+      if (globalStatus === 'STOPPED') {
+        if (cause === 'dashboard') {
+          return 'Detenido desde el dashboard. Relanza el driver con el mismo comando para reanudar; la sesión interrumpida puede haber dejado cambios sin commitear.';
+        }
+        if (cause === 'pausa_vencida') {
+          return 'La pausa venció sin reanudar. Relanza el driver con el mismo comando para continuar.';
+        }
+        if (cause === 'tope_costo') {
+          return 'Se alcanzó el tope de costo. Súbelo con -MaxCostUsd (o desde Parámetros en una corrida viva) y relanza el driver con el mismo comando.';
+        }
+        return (cause === 'manual' ? 'Detenido a mano (Ctrl+C). ' : 'Detenido. ') +
+          'Relanza el driver con el mismo comando para reanudar; la sesión interrumpida puede haber dejado cambios sin commitear.';
+      }
+      if (globalStatus === 'STOPPED_MAX_ITERATIONS') {
+        return 'Se agotó el presupuesto de sesiones. Revisa el avance y relanza con un -MaxIterations mayor.';
+      }
+      return 'Revisa el log y err.log de la última sesión.';
+    }
+
+    // Datos del panel final: visible solo en los estados de PANEL_STATUSES, con lo del ultimo evento de history.
+    function finalPanelInfo(status) {
+      if (!status || PANEL_STATUSES.indexOf(status.globalStatus) === -1) return { visible: false };
+      const history = Array.isArray(status.history) ? status.history : [];
+      const last = history.length ? history[history.length - 1] : null;
+      const pick = k => (last && last[k] != null && last[k] !== '') ? last[k] : null;
+      // 2b: la causa de un final sin sesion (dashboard, pausa_vencida) vive en la raiz del status.
+      let cause = (typeof status.cause === 'string' && status.cause !== '') ? status.cause : pick('cause');
+      // 2c: en AWAITING la causa vive en el bloque awaiting.
+      if (status.globalStatus === 'AWAITING' && status.awaiting && typeof status.awaiting.cause === 'string' && status.awaiting.cause !== '') {
+        cause = status.awaiting.cause;
+      }
+      return {
+        visible: true,
+        globalStatus: status.globalStatus,
+        reason: status.reason || null,
+        cause: cause,
+        planStatusReason: pick('planStatusReason'),
+        logName: logLeaf(pick('logPath')),
+        errName: pick('errFile'),
+        sessionId: pick('sessionId'),
+        action: suggestedAction(status.globalStatus, cause)
+      };
+    }
+
+    const ROLE_LABELS = { impl: 'implementer', spec: 'spec', quality: 'calidad', fix: 'fix', other: 'otro' };
+    const BAR_CLASSES = { impl: 't-impl', spec: 't-rev', quality: 't-rev', fix: 't-fix', other: 't-other' };
+    const TICK_STEPS_MIN = [1, 2, 5, 10, 15, 30, 60, 120];
+    const MAX_TICKS = 8;
+    const MIN_BAR_PCT = 0.5;
+
+    function roleLabel(role) {
+      if (role == null) return ROLE_LABELS.other;
+      return Object.prototype.hasOwnProperty.call(ROLE_LABELS, role) ? ROLE_LABELS[role] : String(role);
+    }
+
+    // Etapa de una tarea -> texto del chip y su clase CSS.
+    function stageView(stage) {
+      const label = roleLabel(stage && stage.role);
+      const state = stage && stage.state;
+      if (state === 'ok') return { text: label + ' ✓', cls: 'st-ok' };
+      if (state === 'ko') return { text: label + ' ✕', cls: 'st-ko' };
+      if (state === 'run') return { text: label + ' ●', cls: 'st-run' };
+      if (state === 'unclosed') return { text: label + ' · sin cierre', cls: 'st-unclosed' };
+      return { text: label, cls: 'st-pend' };
+    }
+
+    function cyclesText(n) {
+      const c = typeof n === 'number' && isFinite(n) ? n : 0;
+      return c + (c === 1 ? ' ciclo' : ' ciclos');
+    }
+
+    // Filas del tablero por tarea, en el orden de view.tasks; [] si la vista no esta disponible.
+    function taskRows(view) {
+      if (!view || !view.available || !Array.isArray(view.tasks)) return [];
+      return view.tasks.map(t => {
+        const stages = (Array.isArray(t.stages) ? t.stages : []).map(s => {
+          const v = stageView(s);
+          return { text: v.text, cls: v.cls, barId: s.barId == null ? null : s.barId, label: s.label == null ? null : s.label };
+        });
+        let badge;
+        if (t.reworkAlert) badge = { cls: 'rw-warn', text: '⚠ ' + cyclesText(t.cycles) };
+        else if (t.done) badge = { cls: 'rw-ok', text: '✓ hecha · ' + cyclesText(t.cycles) };
+        else badge = { cls: '', text: cyclesText(t.cycles) };
+        return { code: t.code, stages, cycles: t.cycles, reworkAlert: !!t.reworkAlert, done: !!t.done, badge };
+      });
+    }
+
+    function round2(x) {
+      return Math.round(x * 100) / 100;
+    }
+
+    // Hora local HH:MM de un instante en ms.
+    function clockLabel(ms) {
+      const d = new Date(ms);
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+    }
+
+    // Distribucion de las barras en carriles por tarea; null si ninguna barra tiene inicio valido.
+    // 2b: el tercer parametro (actions del status) agrega las marcas de acciones dentro de la ventana.
+    function timelineLayout(view, nowMs, actions) {
+      const allBars = view && Array.isArray(view.bars) ? view.bars : [];
+      const bars = allBars.filter(b => b && parseMs(b.startedAt) != null);
+      if (!bars.length) return null;
+      const tasks = Array.isArray(view.tasks) ? view.tasks : [];
+      const commits = Array.isArray(view.commits) ? view.commits : [];
+      const live = !!(view.session && view.session.live === true);
+      const now = typeof nowMs === 'number' && isFinite(nowMs) ? nowMs : null;
+
+      const known = [];
+      let startMs = Infinity;
+      for (const b of bars) {
+        const s = parseMs(b.startedAt);
+        const e = parseMs(b.endedAt);
+        known.push(s);
+        if (s < startMs) startMs = s;
+        if (e != null) known.push(e);
+      }
+      const lastEv = parseMs(view.lastEventAt);
+      if (lastEv != null) known.push(lastEv);
+      const maxKnown = Math.max.apply(null, known);
+      let endMs = live ? Math.max(now == null ? maxKnown : now, maxKnown) : maxKnown;
+      if (endMs <= startMs) endMs = startMs + 60000;
+      const span = endMs - startMs;
+      const pct = ms => round2(Math.max(0, Math.min(100, (ms - startMs) / span * 100)));
+
+      // estado de cada etapa por barra, para marcar las rechazadas
+      const koBars = Object.create(null);
+      for (const t of tasks) {
+        for (const s of (Array.isArray(t.stages) ? t.stages : [])) {
+          if (s && s.barId != null && s.state === 'ko') koBars[s.barId] = true;
+        }
+      }
+
+      const lanes = [];
+      const laneByCode = Object.create(null);
+      const laneFor = code => {
+        if (!laneByCode[code]) {
+          laneByCode[code] = { code, bars: [] };
+          lanes.push(laneByCode[code]);
+        }
+        return laneByCode[code];
+      };
+      for (const t of tasks) laneFor(t.code);
+
+      for (const b of bars) {
+        const s = parseMs(b.startedAt);
+        const e = parseMs(b.endedAt);
+        const open = e == null;
+        let fin = open ? (live && now != null ? now : maxKnown) : e;
+        if (fin < s) fin = s;
+        let width = Math.max(MIN_BAR_PCT, pct(fin) - pct(s));
+        let left = pct(s);
+        if (left + width > 100) left = 100 - width;
+        left = round2(left);
+        width = round2(width);
+        const role = b.role;
+        const cls = Object.prototype.hasOwnProperty.call(BAR_CLASSES, role) ? BAR_CLASSES[role] : 't-other';
+        const title = (b.description || 'sin descripción') + ' · ' + roleLabel(role) + ' · ' +
+          clockLabel(s) + ' - ' + (open ? (live ? 'en curso' : 'sin cierre') : clockLabel(e));
+        laneFor(b.task == null || b.task === '' ? 'otras' : b.task).bars.push({
+          id: b.id, leftPct: left, widthPct: width, cls,
+          ko: !!koBars[b.id], live: open && live, unclosed: open && !live, title
+        });
+      }
+
+      const commitMarks = [];
+      for (const c of commits) {
+        const at = c ? parseMs(c.at) : null;
+        if (at == null) continue;
+        commitMarks.push({ leftPct: pct(at), title: 'commit en ' + (c.branch || 'rama sin dato') });
+      }
+
+      const actionMarks = [];
+      for (const a of (Array.isArray(actions) ? actions : [])) {
+        const at = a ? parseMs(a.appliedAt) : null;
+        if (at == null || at < startMs || at > endMs) continue;
+        const r = actionRow(a);
+        actionMarks.push({ leftPct: pct(at), title: r.action + ' · ' + r.result });
+      }
+
+      // Pasos de eje: el menor de la lista que deje como mucho MAX_TICKS marcas; si ninguno basta, multiplos del mayor.
+      const spanMin = span / 60000;
+      let stepMin = null;
+      for (const st of TICK_STEPS_MIN) {
+        if (Math.floor(spanMin / st) + 1 <= MAX_TICKS) { stepMin = st; break; }
+      }
+      if (stepMin == null) {
+        const top = TICK_STEPS_MIN[TICK_STEPS_MIN.length - 1];
+        stepMin = Math.ceil(spanMin / (MAX_TICKS - 1) / top) * top;
+      }
+      const ticks = [];
+      for (let ms = startMs; ms <= endMs && ticks.length < MAX_TICKS; ms += stepMin * 60000) {
+        ticks.push({ leftPct: pct(ms), label: clockLabel(ms) });
+      }
+
+      return {
+        startMs, endMs, lanes, commits: commitMarks, actions: actionMarks,
+        nowPct: live && now != null ? pct(now) : null,
+        ticks
+      };
+    }
+
+    // Subagentes sin cierre: una fila por id de view.live que exista en bars, por orden de inicio.
+    function liveRows(view, nowMs) {
+      const bars = view && Array.isArray(view.bars) ? view.bars : [];
+      const ids = view && Array.isArray(view.live) ? view.live : [];
+      const live = !!(view && view.session && view.session.live === true);
+      const rows = [];
+      for (const id of ids) {
+        const b = bars.find(x => x && x.id === id);
+        if (!b) continue;
+        const s = parseMs(b.startedAt);
+        rows.push({
+          id: b.id, subagentType: b.subagentType == null ? null : b.subagentType,
+          task: b.task == null ? null : b.task,
+          description: b.description == null ? null : b.description,
+          lastTool: b.lastTool == null ? null : b.lastTool,
+          tokens: b.tokens == null ? null : b.tokens,
+          elapsedMs: s == null ? null : nowMs - s, unclosed: !live, startMs: s
+        });
+      }
+      // sin inicio valido va al final
+      rows.sort((a, b) => {
+        if (a.startMs == null || b.startMs == null) return (a.startMs == null ? 1 : 0) - (b.startMs == null ? 1 : 0);
+        return a.startMs - b.startMs;
+      });
+      return rows.map(r => ({
+        id: r.id, subagentType: r.subagentType, task: r.task, description: r.description,
+        lastTool: r.lastTool, tokens: r.tokens, elapsedMs: r.elapsedMs, unclosed: r.unclosed
+      }));
+    }
+
+    function formatTokens(n) {
+      if (typeof n !== 'number' || !isFinite(n)) return '—';
+      const r = Math.round(n);
+      return r < 1000 ? String(r) : Math.round(r / 1000) + ' k';
+    }
+
+    function projectLabel(projectPath) {
+      return projectPath || 'proyecto sin dato';
+    }
+
+    function resumeCommand(projectPath, sessionId) {
+      const cd = projectPath ? `cd "${projectPath}" && ` : '';
+      return `${cd}claude --resume ${sessionId}`;
+    }
+
+    // 2a I5: duracion legible; sin dato o negativa, una raya (igual que formatDuration).
+    function durationText(ms) {
+      if (typeof ms !== 'number' || !isFinite(ms) || ms < 0) return '—';
+      const totalSeconds = Math.round(ms / 1000);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    }
+
+    // 2a I5: celdas de telemetria de una fila del historial; sin dato, una raya.
+    function telemetryCells(ev) {
+      const t = ev && ev.telemetry ? ev.telemetry : {};
+      const parts = [t.cacheReadTokens, t.cacheCreationTokens].filter(v => typeof v === 'number' && isFinite(v));
+      return {
+        duration: durationText(t.durationMs),
+        turns: Number.isInteger(t.numTurns) ? String(t.numTurns) : '—',
+        inputTokens: formatTokens(t.inputTokens),
+        outputTokens: formatTokens(t.outputTokens),
+        cacheTokens: parts.length ? formatTokens(parts.reduce((a, v) => a + v, 0)) : '—'
+      };
+    }
+
+    // Iteracion base de esta corrida: las sesiones con iter <= iterBase son de corridas anteriores.
+    function iterBaseOf(status) {
+      const b = status && status.limits ? status.limits.iterBase : null;
+      return Number.isInteger(b) && b >= 0 ? b : 0;
+    }
+
+    // 2a I5: costo acumulado del historial frente al tope opcional (limits.maxCostUsd > 0).
+    function costView(status) {
+      const history = status && Array.isArray(status.history) ? status.history : [];
+      // PC-6: solo esta corrida; una entrada sin iter entero sigue contando.
+      const base = iterBaseOf(status);
+      const costs = history.filter(h => !(h && Number.isInteger(h.iter) && h.iter <= base))
+        .map(h => (h && h.telemetry ? h.telemetry.costUsd : null)).filter(c => typeof c === 'number' && isFinite(c));
+      const total = costs.length ? costs.reduce((a, c) => a + c, 0) : null;
+      const maxCost = status && status.limits ? status.limits.maxCostUsd : null;
+      const cap = typeof maxCost === 'number' && maxCost > 0 ? maxCost : null;
+      const pct = cap != null && total != null ? Math.min(100, Math.round(total / cap * 100)) : null;
+      let text;
+      if (total == null) text = '—';
+      else if (cap == null) text = '$' + total.toFixed(2);
+      else text = '$' + total.toFixed(2) + ' / $' + cap.toFixed(2);
+      return { total, cap, pct, text };
+    }
+
+    // 2a I6: sesiones usadas (iteraciones distintas de esta corrida) frente al presupuesto.
+    function sessionsView(status) {
+      const limits = status && status.limits;
+      if (!limits || typeof limits.sessionBudget !== 'number') return null;
+      const base = iterBaseOf(status);
+      const history = Array.isArray(status.history) ? status.history : [];
+      const iters = new Set();
+      for (const h of history) {
+        if (h && Number.isInteger(h.iter) && h.iter > base) iters.add(h.iter);
+      }
+      const cur = status.currentSession && status.currentSession.iter;
+      if (Number.isInteger(cur) && cur > base) iters.add(cur);
+      const source = typeof limits.budgetSource === 'string' && limits.budgetSource ? limits.budgetSource : null;
+      const used = iters.size;
+      return { used, budget: limits.sessionBudget, source, text: `${used} / ${limits.sessionBudget}` + (source ? ` (${source})` : '') };
+    }
+
+    // 2a I6: reintentos de esta corrida frente al maximo por sesion.
+    function retriesView(status) {
+      const base = iterBaseOf(status);
+      const history = status && Array.isArray(status.history) ? status.history : [];
+      const count = history.filter(h => h && Number.isInteger(h.attempt) && h.attempt > 0 && h.iter > base).length;
+      const m = status && status.limits ? status.limits.maxTransientRetries : null;
+      const max = Number.isInteger(m) ? m : null;
+      return { count, max, text: max == null ? String(count) : `${count} (máx. ${max} por sesión)` };
+    }
+
+    // 2a I6: fin estimado, solo en RUNNING. null = no aplica; { available: false } = sin base para estimar.
+    function endEstimate(status, nowMs) {
+      if (!status || status.globalStatus !== 'RUNNING') return null;
+      const levels = Array.isArray(status.levelHistory) ? status.levelHistory : [];
+      const closed = [];
+      for (const l of levels) {
+        const a = l ? parseMs(l.enteredAt) : null;
+        const b = l ? parseMs(l.completedAt) : null;
+        if (a != null && b != null && b - a >= 0) closed.push(b - a);
+      }
+      if (!closed.length || typeof status.totalLevels !== 'number' || typeof status.currentLevel !== 'number') return { available: false };
+      const mediaNivel = closed.reduce((a, d) => a + d, 0) / closed.length;
+      const restantes = Math.max(0, status.totalLevels - status.currentLevel);
+      const base = iterBaseOf(status);
+      const history = Array.isArray(status.history) ? status.history : [];
+      const durs = history
+        .filter(h => h && h.iter > base && h.telemetry && typeof h.telemetry.durationMs === 'number' && h.telemetry.durationMs >= 0)
+        .map(h => h.telemetry.durationMs);
+      const mediaSesion = durs.length ? durs.reduce((a, d) => a + d, 0) / durs.length : null;
+      const cierre = (status.phase && status.phase.finalReviewExists === true) || mediaSesion == null ? 0 : mediaSesion;
+      const remainingMs = Math.round(mediaNivel * restantes + cierre);
+      return { available: true, remainingMs, etaMs: nowMs + remainingMs };
+    }
+
+    // Textos de rama, adelanto y arbol de un bloque git sin error; los comparten gitView e integrationView.
+    function gitTexts(git) {
+      return {
+        branchText: `${git.branch || '—'} (base ${git.baseBranch || '—'})`,
+        aheadText: typeof git.ahead === 'number' ? `${git.ahead} commits por delante` : '—',
+        cleanText: git.clean === true ? 'limpio' : (git.clean === false ? 'con cambios sin commitear' : '—')
+      };
+    }
+
+    // 2a I8: resumen de git listo para pintar; el escapado es del render.
+    function gitView(git) {
+      if (!git || typeof git !== 'object') return null;
+      if (git.error) return { error: String(git.error) };
+      const num = v => (typeof v === 'number' ? v : 0);
+      const d = git.diffstat;
+      const t = gitTexts(git);
+      return {
+        error: null,
+        branchText: t.branchText,
+        aheadText: t.aheadText,
+        commits: (Array.isArray(git.commits) ? git.commits : []).map(c => ({ hash: String((c && c.hash) || ''), subject: String((c && c.subject) || '') })),
+        diffText: d ? `${num(d.files)} archivos, +${num(d.insertions)} / -${num(d.deletions)}` : '—',
+        cleanText: t.cleanText
+      };
+    }
+
+    // 2a I9: vista de la revision final; null si no existe. Sin counts, se muestra el markdown crudo.
+    function finalReviewView(review) {
+      if (!review || review.exists !== true) return null;
+      const structured = !!review.counts && typeof review.counts === 'object';
+      return {
+        verdict: typeof review.verdict === 'string' && review.verdict ? review.verdict : null,
+        structured,
+        counts: structured
+          ? ['CRITICAL', 'IMPORTANT', 'MINOR'].map(s => {
+            const n = Number.isInteger(review.counts[s]) ? review.counts[s] : 0;
+            return { severity: s, n, danger: s === 'CRITICAL' && n > 0 };
+          })
+          : null,
+        findings: Array.isArray(review.findings)
+          ? review.findings.map(f => ({ severity: String((f && f.severity) || ''), title: String((f && f.title) || '') }))
+          : [],
+        raw: typeof review.raw === 'string' ? review.raw : ''
+      };
+    }
+
+    // 2a I11: insignia de fase en la cabecera; null sin phase.mode.
+    function phaseBadge(status) {
+      const phase = status && status.phase;
+      if (!phase || typeof phase.mode !== 'string' || !phase.mode) return null;
+      return {
+        mode: phase.mode,
+        text: phase.mode === 'close' ? 'close · revisión final: ' + (phase.finalReviewExists === true ? 'lista' : 'pendiente') : phase.mode
+      };
+    }
+
+    // 2a I9: la revision final se pide al cargar y al pasar finalReviewExists a true; no en cada poll.
+    function shouldFetchFinalReview(prevExists, newExists, isFirstLoad) {
+      return isFirstLoad === true || (prevExists !== true && newExists === true);
+    }
+    // 2a-3: el panel solo se oculta cuando el status trae bloque phase y la revision ya no existe;
+    // sin phase (driver viejo) el respaldo por planFile del servidor puede seguir mostrandola.
+    function shouldHideFinalReview(data, reviewExists, firstReviewCheck) {
+      return !!(data && data.phase) && reviewExists !== true && firstReviewCheck !== true;
+    }
+
+    // 2b: el token viaja en el fragmento (#t=<64 hex>); null si no hay uno valido.
+    function readFragmentToken(hash) {
+      if (typeof hash !== 'string') return null;
+      const m = /(?:^#|&)t=([0-9a-f]{64})(?=&|$)/.exec(hash);
+      return m ? m[1] : null;
+    }
+
+    // 2b: acciones que ofrece la barra; vacio sin canal habilitado o con el driver muerto.
+    function availableActions(status, driver) {
+      if (!status || !status.control || status.control.enabled !== true) return [];
+      if (driver && driver.alive === false) return [];
+      if (status.globalStatus === 'RUNNING') return ['pause', 'stop', 'set-params', 'open'];
+      if (status.globalStatus === 'PAUSED') return ['resume', 'stop', 'set-params', 'open'];
+      if (status.globalStatus === 'AWAITING') {
+        const aw = status.awaiting && typeof status.awaiting === 'object' ? status.awaiting : null;
+        const allowed = aw && Array.isArray(aw.allowed) ? aw.allowed : [];
+        const out = [];
+        if (allowed.indexOf('answer') !== -1 && aw.origin === 'BLOCKED') out.push('answer');
+        if (allowed.indexOf('retry') !== -1 && aw.resumable === true) out.push('retry-session');
+        if (allowed.indexOf('retry') !== -1) out.push('retry-level');
+        for (const a of ['stop', 'set-params', 'open']) {
+          if (allowed.indexOf(a) !== -1) out.push(a);
+        }
+        return out;
+      }
+      return [];
+    }
+
+    // 2c: accion y parametros del canal a partir del id de la barra (retry-session y retry-level son un mismo retry).
+    function actionParams(barAction, extra) {
+      if (barAction === 'retry-session') return { action: 'retry', params: { mode: 'session' } };
+      if (barAction === 'retry-level') return { action: 'retry', params: { mode: 'level' } };
+      if (barAction === 'answer') return { action: 'answer', params: { text: extra && extra.text } };
+      if (barAction === 'open') return { action: 'open', params: extra || {} };
+      return { action: barAction, params: extra || {} };
+    }
+
+    // 2c: opciones del menu Abrir; el log necesita historial y la terminal una sesion reanudable en PAUSED o AWAITING.
+    function openTargets(status) {
+      const history = status && Array.isArray(status.history) ? status.history : [];
+      const last = history.length ? history[history.length - 1] : null;
+      const targets = ['folder'];
+      if (history.length) targets.push('log');
+      const gs = status && status.globalStatus;
+      if ((gs === 'PAUSED' || gs === 'AWAITING') && last && typeof last.sessionId === 'string' && last.sessionId !== '') {
+        targets.push('terminal');
+      }
+      return targets;
+    }
+
+    function openParams(target, status) {
+      const history = status && Array.isArray(status.history) ? status.history : [];
+      const last = history.length ? history[history.length - 1] : null;
+      if ((target === 'log' || target === 'terminal') && last && Number.isInteger(last.iter)) {
+        return { target: target, iter: last.iter };
+      }
+      return { target: target };
+    }
+
+    // 2c: mismas reglas que el servidor (answer_text_ok), en este orden; null si el texto es valido.
+    function answerTextError(text) {
+      if (typeof text !== 'string' || text.trim() === '') return 'Escribe una respuesta';
+      if (text.length > ANSWER_MAX) return 'Máximo 4000 caracteres';
+      const notAllowed = 'La respuesta tiene caracteres no permitidos';
+      for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if (c >= 0xD800 && c <= 0xDBFF) {
+          const n = text.charCodeAt(i + 1);
+          if (n >= 0xDC00 && n <= 0xDFFF) { i++; continue; }
+          return notAllowed;
+        }
+        if (c >= 0xDC00 && c <= 0xDFFF) return notAllowed;
+      }
+      for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if ((c < 0x20 && c !== 0x09 && c !== 0x0A && c !== 0x0D) || (c >= 0x7F && c <= 0x9F)) {
+          return 'La respuesta tiene caracteres de control';
+        }
+      }
+      for (let i = 0; i < text.length; i++) {
+        const c = text.charCodeAt(i);
+        if ((c >= 0x202A && c <= 0x202E) || (c >= 0x2066 && c <= 0x2069)) return notAllowed;
+      }
+      if (text.toUpperCase().indexOf('PLAN_STATUS') !== -1) return 'La respuesta no puede contener PLAN_STATUS';
+      if (new TextEncoder().encode(JSON.stringify({ text })).length > CONTROL_BODY_MAX) {
+        return 'La respuesta es demasiado grande para enviarla';
+      }
+      return null;
+    }
+
+    // 2c: datos de la espera de decision; null fuera de AWAITING o sin bloque awaiting.
+    function awaitingInfo(status, nowMs) {
+      if (!status || status.globalStatus !== 'AWAITING' || !status.awaiting || typeof status.awaiting !== 'object') return null;
+      const aw = status.awaiting;
+      const sinceMs = parseMs(aw.since);
+      const deadlineMs = parseMs(aw.deadline);
+      const remainingMs = deadlineMs == null ? null : Math.max(0, deadlineMs - nowMs);
+      const origin = aw.origin;
+      const text = 'Esperando decisión (' + origin + ')' +
+        (deadlineMs == null ? ' · sin vencimiento' : ' · vence en ' + durationText(remainingMs));
+      const reason = (typeof aw.reason === 'string' && aw.reason !== '') ? aw.reason : null;
+      return { origin, reason, sinceMs, deadlineMs, remainingMs, text };
+    }
+
+    function controlBarView(status, driver, hasToken) {
+      if (!status || LIVE_STATUSES.indexOf(status.globalStatus) === -1 || (driver && driver.alive === false)) {
+        return { visible: false, actions: [], message: null };
+      }
+      if (!hasToken || !status.control || status.control.enabled !== true) {
+        return { visible: true, actions: [], message: DISABLED_TEXT };
+      }
+      return { visible: true, actions: availableActions(status, driver), message: null };
+    }
+
+    function controlRequest(action, params, token) {
+      return {
+        path: '/control/' + action,
+        init: {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Control-Token': token },
+          body: JSON.stringify(params || {})
+        }
+      };
+    }
+
+    function controlErrorText(httpStatus, body) {
+      const b = body && typeof body === 'object' ? body : {};
+      if (httpStatus === 409) return 'Hay una orden pendiente';
+      if (httpStatus === 403) return 'El servidor rechazó la orden: ' + (b.error || 'sin detalle');
+      if (httpStatus === 400) return 'Parámetro inválido: ' + (b.field || b.error || 'cuerpo');
+      if (httpStatus === 413) return 'La orden es demasiado grande';
+      if (httpStatus === 415) return 'Tipo de contenido no admitido';
+      if (httpStatus === 0) return 'Sin conexión con el servidor';
+      return 'Error HTTP ' + httpStatus;
+    }
+
+    // Etiqueta de una accion: la de ACTION_LABELS, el texto si no se conoce o una raya.
+    function actionLabel(action) {
+      if (typeof action !== 'string' || action === '') return '—';
+      return Object.prototype.hasOwnProperty.call(ACTION_LABELS, action) ? ACTION_LABELS[action] : action;
+    }
+
+    // Resultado de la orden enviada: idle sin orden, pending hasta que control.last.id coincide,
+    // done al confirmarse o al vencer CONTROL_CONFIRM_MS sin confirmacion (los botones se rehabilitan).
+    function controlResultView(pendingId, status, elapsedMs) {
+      if (pendingId == null || pendingId === '') return { state: 'idle', text: '' };
+      const last = status && status.control ? status.control.last : null;
+      if (last && last.id === pendingId) {
+        const detail = (typeof last.detail === 'string' && last.detail !== '') ? last.detail : '';
+        const text = last.result === 'applied'
+          ? 'Orden aplicada: ' + actionLabel(last.action) + (detail ? ' (' + detail + ')' : '')
+          : 'Orden rechazada: ' + (detail || 'sin detalle');
+        return { state: 'done', text };
+      }
+      if (status && isFinalStatus(status.globalStatus)) {
+        return { state: 'done', text: 'La corrida terminó: ' + status.globalStatus };
+      }
+      if (typeof elapsedMs === 'number' && elapsedMs >= CONTROL_CONFIRM_MS) {
+        return { state: 'done', text: 'Sin confirmación del driver' };
+      }
+      return { state: 'pending', text: 'Orden enviada…' };
+    }
+
+    // El nivel en curso no se pinta como error mientras el driver esta pausado.
+    function levelNodeState(globalStatus) {
+      if (globalStatus === 'RUNNING') return 'running';
+      if (globalStatus === 'PAUSED') return 'paused';
+      if (globalStatus === 'AWAITING') return 'awaiting';
+      return 'error';
+    }
+
+    // Valores actuales de los 8 parametros editables (params y limits); faltante = null.
+    function paramsCurrent(status) {
+      const p = (status && status.params) || {};
+      const l = (status && status.limits) || {};
+      const pick = v => (v === undefined ? null : v);
+      const backoff = Array.isArray(p.retryBackoffSeconds) ? p.retryBackoffSeconds[0] : p.retryBackoffSeconds;
+      return {
+        model: pick(p.model),
+        levelEffort: pick(p.levelEffort),
+        closeEffort: pick(p.closeEffort),
+        retryBackoffSeconds: pick(backoff),
+        livenessTimeoutMinutes: pick(p.livenessTimeoutMinutes),
+        maxTransientRetries: pick(l.maxTransientRetries),
+        maxCostUsd: pick(l.maxCostUsd),
+        awaitDecisionMinutes: pick(l.awaitDecisionMinutes)
+      };
+    }
+
+    // Solo los campos que cambian; vacio = sin cambio. invalid lista los numericos mal escritos.
+    function changedParams(current, form) {
+      const cur = current || {};
+      const f = form || {};
+      const textKeys = ['model', 'levelEffort', 'closeEffort'];
+      const numKeys = ['maxTransientRetries', 'retryBackoffSeconds', 'livenessTimeoutMinutes', 'maxCostUsd', 'awaitDecisionMinutes'];
+      const params = {};
+      const invalid = [];
+      for (const k of textKeys) {
+        if (f[k] == null) continue;
+        const v = String(f[k]).trim();
+        if (v === '') continue;
+        if (v !== cur[k]) params[k] = v;
+      }
+      for (const k of numKeys) {
+        if (f[k] == null) continue;
+        const raw = String(f[k]).trim();
+        if (raw === '') continue;
+        const n = Number(raw);
+        if (!isFinite(n) || (k !== 'maxCostUsd' && !Number.isInteger(n))) {
+          invalid.push(k);
+          continue;
+        }
+        if (n !== cur[k]) params[k] = n;
+      }
+      return { params, invalid };
+    }
+
+    // Detener pide un segundo clic durante STOP_CONFIRM_MS.
+    function stopConfirmState(armedAtMs, nowMs) {
+      if (armedAtMs == null) return 'idle';
+      const d = nowMs - armedAtMs;
+      return d >= 0 && d < STOP_CONFIRM_MS ? 'armed' : 'idle';
+    }
+
+    // Datos de la pausa; null fuera de PAUSED o sin bloque paused.
+    function pausedInfo(status, nowMs) {
+      if (!status || status.globalStatus !== 'PAUSED' || !status.paused || typeof status.paused !== 'object') return null;
+      const sinceMs = parseMs(status.paused.since);
+      const deadlineMs = parseMs(status.paused.deadline);
+      const remainingMs = deadlineMs == null ? null : Math.max(0, deadlineMs - nowMs);
+      const text = (sinceMs == null ? 'En pausa' : 'En pausa desde ' + clockLabel(sinceMs)) +
+        (deadlineMs == null ? ' · sin vencimiento' : ' · vence en ' + durationText(remainingMs));
+      return { sinceMs, deadlineMs, remainingMs, text };
+    }
+
+    // Una fila del panel Acciones a partir de una entrada de status.actions.
+    function actionRow(a) {
+      const ms = parseMs(a && (a.appliedAt || a.requestedAt));
+      return {
+        time: ms == null ? '—' : clockLabel(ms),
+        action: actionLabel(a && a.action),
+        result: a && a.result === 'applied' ? 'aplicada' : (a && a.result === 'rejected' ? 'rechazada' : '—'),
+        detail: a && a.detail != null ? String(a.detail) : ''
+      };
+    }
+
+    // Hasta 20 filas, la mas nueva primero.
+    function actionRows(status) {
+      const list = status && Array.isArray(status.actions) ? status.actions : [];
+      return list.slice(-20).reverse().map(actionRow);
+    }
+
+    // Ola 3 I7: hash de commit valido (7 a 40 hex); cualquier otro valor se descarta.
+    const HASH_RE = /^[0-9a-f]{7,40}$/i;
+    const TASK_BADGES = {
+      done: ['tk-done', 'hecha'],
+      in_progress: ['tk-progress', 'en curso'],
+      blocked: ['tk-blocked', 'bloqueada'],
+      pending: ['tk-pending', 'pendiente']
+    };
+
+    function validHash(h) {
+      return typeof h === 'string' && HASH_RE.test(h) ? h : null;
+    }
+
+    // Ola 3 I7: tareas del plan agrupadas por nivel; null sin bloque tasks utilizable. id y title salen sin escapar: el escapado es del render.
+    function planTasksView(status) {
+      const block = status && status.tasks;
+      if (!block || typeof block !== 'object' || !Array.isArray(block.items) || block.items.length === 0) return null;
+      const byLevel = new Map();
+      block.items.forEach(raw => {
+        if (!raw || typeof raw !== 'object' || !Number.isInteger(raw.level) || raw.level < 0) return;
+        const st = raw.status == null ? 'pending' : String(raw.status);
+        const known = Object.prototype.hasOwnProperty.call(TASK_BADGES, st) ? TASK_BADGES[st] : null;
+        const commit = validHash(raw.commit);
+        const fixCommits = (Array.isArray(raw.fixCommits) ? raw.fixCommits : [])
+          .map(validHash).filter(h => h !== null).map(h => ({ hash: h, short: h.slice(0, 7) }));
+        if (!byLevel.has(raw.level)) byLevel.set(raw.level, []);
+        byLevel.get(raw.level).push({
+          id: raw.id == null ? '—' : String(raw.id),
+          title: raw.title == null ? '—' : String(raw.title),
+          status: st,
+          badgeCls: known ? known[0] : 'tk-pending',
+          badgeText: known ? known[1] : st,
+          commit,
+          commitShort: commit ? commit.slice(0, 7) : null,
+          fixCommits
+        });
+      });
+      const levels = [...byLevel.keys()].sort((a, b) => a - b).map(level => {
+        const items = byLevel.get(level);
+        return { level, open: false, doneCount: items.filter(i => i.status === 'done').length, total: items.length, items };
+      });
+      // Abre el nivel actual; si ninguno coincide, el menor con alguna tarea sin terminar; si todo esta hecho, ninguno.
+      let target = levels.find(l => l.level === status.currentLevel);
+      if (!target) target = levels.find(l => l.doneCount < l.total);
+      if (target) target.open = true;
+      return { truncated: block.truncated === true, levels };
+    }
+
+    // Ola 3 D3: panel Pendiente de integrar; null salvo con globalStatus DONE. Faltar un dato nunca da "lista".
+    function integrationView(status, review) {
+      if (!status || status.globalStatus !== 'DONE') return null;
+      const git = status.git && typeof status.git === 'object' ? status.git : null;
+      const gitOk = git !== null && !git.error;
+      const texts = gitOk ? gitTexts(git) : { branchText: '—', aheadText: '—', cleanText: '—' };
+      const counts = review && review.exists === true && review.counts && typeof review.counts === 'object' ? review.counts : null;
+      const n = k => (counts && Number.isInteger(counts[k]) ? counts[k] : null);
+      const crit = n('CRITICAL');
+      const imp = n('IMPORTANT');
+      const minor = n('MINOR');
+      const ready = gitOk && git.clean === true && crit === 0 && imp === 0;
+      const show = v => (v === null ? '—' : String(v));
+      const steps = [];
+      if ([crit, imp].some(v => v !== null && v > 0)) steps.push('1. Resolver los hallazgos abiertos');
+      steps.push(`${steps.length + 1}. Ejecutar finishing-a-development-branch (merge, push o PR) desde una sesión humana`);
+      return {
+        ready,
+        badgeCls: ready ? 'ig-ready' : 'ig-attention',
+        badgeText: ready ? 'Lista para integrar' : 'Requiere atención',
+        branchText: texts.branchText,
+        aheadText: texts.aheadText,
+        cleanText: texts.cleanText,
+        countsText: review && review.exists === true
+          ? `CRITICAL: ${show(crit)} · IMPORTANT: ${show(imp)} · MINOR: ${show(minor)}`
+          : 'sin revisión final',
+        steps
+      };
+    }
+
+    // Ola 3 D8: insignia de permisos del encabezado; null sin bloque permissions o con un modo desconocido.
+    function permissionsView(status) {
+      const p = status && status.permissions;
+      if (!p || typeof p !== 'object') return null;
+      if (p.mode === 'profile') return { cls: 'perm-profile', text: 'Permisos: perfil ' + String(p.profile || '—') };
+      if (p.mode === 'unsafe') return { cls: 'perm-unsafe', text: 'Permisos: sin restricciones' };
+      return null;
+    }
+    // Ola 3 I7: eleccion del usuario en un nivel del panel de tareas. domOpen es el open leido del DOM; prevDefault el open
+    // que dio la vista en el ultimo pintado. Devuelve domOpen si difiere del default; undefined si el usuario sigue el default.
+    function planLevelUserChoice(domOpen, prevDefault) {
+      return domOpen !== prevDefault ? domOpen : undefined;
+    }
+    // Ola 3 I7: open a pintar en un nivel. userOpen es la eleccion guardada (o undefined); sin eleccion, sigue a la vista.
+    function planLevelOpenState(viewOpen, userOpen) {
+      return userOpen !== undefined ? userOpen : viewOpen;
+    }
+    // == puro:fin ==
+
+    // Tope de espera de cada peticion: dos ciclos de poll. Sin tope, una peticion colgada
+    // frenaria el polling para siempre sin error visible.
+    const FETCH_TIMEOUT_MS = POLL_MS * 2;
+    const NOTIFY_KEY = 'driverDashboard.notify';
+
+    let lastStatus = null;      // ultimo status valido
+    let lastActivity = null;    // ultima vista de /activity.json de la sesion elegida
+    let userIter = null;        // sesion elegida a mano; null = seguir a la sesion en curso
+    let prevStatus = null;
+    let firstPoll = true;
+    let pollTimer = null;
+    let staleSince = null;   // H1 bis: inicio del heartbeat vencido seguido; null si no aplica
+    let tickTimer = null;
+    let activitySeq = 0;
+    let lastDriver = null;      // ultimo bloque driver de /activity.json (global, no depende de la sesion elegida)
+    let prevDriverAlive = null;
+    let notifyPref = 'off';
+    let prevReviewExists = false;   // finalReviewExists del poll anterior
+    let firstReviewCheck = true;    // la primera carga siempre pide la revision final
+    let lastFinalReview = null;     // ultima revision final que devolvio fetchFinalReview; null si el pedido fallo o no hubo revision
+    let planTasksKey = null;        // vista de tareas ya pintada; evita repintar (y cerrar lo abierto) si no cambio
+    let planTasksPlan = null;       // planFile de la vista pintada; si cambia, se vacian los niveles y se repinta
+    const planLevelOpen = new Map();    // nivel -> open que eligio el usuario; solo se guarda lo que difiere del default de la vista
+    const planLevelDefault = new Map(); // nivel -> open que dio la vista en el ultimo pintado; base para detectar la eleccion
+    let finalLogsKey = null;    // nombres de log ya pedidos para el panel final; null = nada pedido
+    // 2b: estado de la barra de acciones (controlToken se inicializa justo antes del primer poll).
+    const TOKEN_KEY = 'driverControlToken';
+    const PARAM_FIELDS = ['model', 'levelEffort', 'closeEffort', 'maxTransientRetries', 'retryBackoffSeconds',
+      'livenessTimeoutMinutes', 'maxCostUsd', 'awaitDecisionMinutes'];
+    let pendingControlId = null;   // id devuelto por el 202 de la ultima orden
+    let pendingSentAt = 0;
+    let controlBusy = false;       // peticion en curso
+    let controlNotice = '';        // mensaje propio de la pagina (error HTTP, sin cambios, sin confirmacion)
+    let stopArmedAt = null;
+    let stopTimer = null;
+
+    function $(id) { return document.getElementById(id); }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+        { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function timeSignal() {
+      return (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(FETCH_TIMEOUT_MS) : undefined;
+    }
+
+    function timeLabel(iso, withSeconds) {
+      const ms = parseMs(iso);
+      if (ms == null) return '—';
+      return new Date(ms).toLocaleTimeString([], withSeconds
+        ? { hour: '2-digit', minute: '2-digit', second: '2-digit' }
+        : { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Cada panel se renderiza aislado: si uno falla, solo ese muestra "sin datos".
+    // fallbackId: elemento donde escribir "sin datos" (por defecto id); util si id es un contenedor con controles.
+    function safeRender(id, fn, fallbackId) {
+      try {
+        fn();
+      } catch (e) {
+        console.warn('dashboard: fallo al renderizar ' + id, e);
+        const el = $(fallbackId || id);
+        if (el) el.textContent = 'sin datos';
+      }
+    }
+
+    function loadNotifyPref() {
+      try {
+        return localStorage.getItem(NOTIFY_KEY) === 'on' ? 'on' : 'off';
+      } catch (e) {
+        return 'off';
+      }
+    }
+
+    function saveNotifyPref(v) {
+      try {
+        localStorage.setItem(NOTIFY_KEY, v);
+      } catch (e) {
+        // sin almacenamiento: la preferencia vale solo para esta pagina
+      }
+    }
+
+    function renderNotifyButton() {
+      const btn = $('notify-toggle');
+      if (!('Notification' in window)) {
+        btn.disabled = true;
+        btn.title = 'Este navegador no soporta notificaciones';
+        btn.textContent = 'Notificaciones: desactivadas';
+        return;
+      }
+      btn.textContent = 'Notificaciones: ' + (notifyPref === 'on' ? 'activadas' : 'desactivadas');
+    }
+
+    async function toggleNotify() {
+      if (notifyPref === 'on') {
+        notifyPref = 'off';
+      } else {
+        if (!('Notification' in window)) return;
+        let perm = Notification.permission;
+        if (perm !== 'granted') {
+          try { perm = await Notification.requestPermission(); } catch (e) { perm = 'denied'; }
+        }
+        notifyPref = perm === 'granted' ? 'on' : 'off';
+      }
+      saveNotifyPref(notifyPref);
+      renderNotifyButton();
+    }
+
+    function notifyAllowed() {
+      return notifyPref === 'on' && ('Notification' in window) && Notification.permission === 'granted';
+    }
+
+    // Sin return temprano entre las ramas: prevDriverAlive se actualiza siempre al final.
+    function maybeNotify(prev, data, wasFirst) {
+      if (shouldNotify(prev, data.globalStatus, wasFirst) && notifyAllowed()) {
+        try {
+          new Notification('Driver: ' + data.globalStatus, { body: (data.planFile || '(plan no detectado)') + ' — ' + (data.reason || '') });
+        } catch (e) {
+          // el navegador rechazo la notificacion: no es critico
+        }
+      }
+      if (LIVE_STATUSES.indexOf(data.globalStatus) !== -1 &&
+          shouldNotifyDriverDead(prevDriverAlive, lastDriver && lastDriver.alive, wasFirst) && notifyAllowed()) {
+        try {
+          const dead = driverDeadInfo(data, lastDriver);
+          new Notification('Driver: sin respuesta', { body: (data.planFile || '(plan no detectado)') + ' — ' + (dead ? dead.message : '') });
+        } catch (e) {
+          // el navegador rechazo la notificacion: no es critico
+        }
+      }
+      prevDriverAlive = lastDriver ? lastDriver.alive : null;
+    }
+
+    function formatDuration(ms) {
+      if (ms == null || ms < 0 || isNaN(ms)) return '';
+      const totalSeconds = Math.round(ms / 1000);
+      const m = Math.floor(totalSeconds / 60);
+      const s = totalSeconds % 60;
+      return m > 0 ? `${m}m ${s}s` : `${s}s`;
+    }
+
+    function copyableCommandHTML(cmd) {
+      const safe = escapeHtml(cmd);
+      return `<code class="cmd-text">${safe}</code> <button class="copy-btn" data-cmd="${safe}">Copiar</button>`;
+    }
+
+    function commandCellHTML(projectPath, sessionId) {
+      if (!sessionId) return '<td>-</td>';
+      const cmd = resumeCommand(projectPath, sessionId);
+      return `<td>${copyableCommandHTML(cmd)}</td>`;
+    }
+
+    function copyCommand(text, buttonEl) {
+      try {
+        const result = navigator.clipboard.writeText(text);
+        const original = buttonEl.textContent;
+        if (result && typeof result.then === 'function') {
+          result.then(() => {
+            buttonEl.textContent = 'Copiado';
+            setTimeout(() => { buttonEl.textContent = original; }, 1500);
+          }).catch(() => {
+            // portapapeles no disponible o rechazado -- el comando sigue siendo seleccionable a mano
+          });
+        } else {
+          buttonEl.textContent = 'Copiado';
+          setTimeout(() => { buttonEl.textContent = original; }, 1500);
+        }
+      } catch (e) {
+        // portapapeles no disponible -- el comando sigue siendo seleccionable a mano
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      if (e.target.classList.contains('copy-btn')) {
+        copyCommand(e.target.dataset.cmd, e.target);
+      }
+    });
+
+    function pipelineNodeHTML(state, label, duration) {
+      const icons = { pending: '○', running: '●', success: '✓', error: '✕', paused: '‖', awaiting: '?' };
+      const durationHTML = duration ? `<span class="node-duration">${duration}</span>` : '';
+      return `<div class="pipeline-node node-${state}">` +
+        `<span class="node-icon">${icons[state]}</span>` +
+        `<span class="node-label">${label}</span>` +
+        durationHTML +
+        `</div>`;
+    }
+
+    function renderPipelineLevels(data) {
+      const total = data.totalLevels;
+      const current = data.currentLevel;
+      const done = data.globalStatus === 'DONE';
+      const levelHistory = data.levelHistory || [];
+      const taskCounts = data.levelTaskCounts || [];
+      const now = Date.now();
+      const nodes = [];
+
+      for (let i = 0; i < total; i++) {
+        let state;
+        if (done) {
+          state = 'success';
+        } else if (current == null) {
+          state = 'pending';
+        } else if (i < current) {
+          state = 'success';
+        } else if (i === current) {
+          state = levelNodeState(data.globalStatus);
+        } else {
+          state = 'pending';
+        }
+
+        const count = taskCounts[i];
+        const label = `Nivel ${i}` + (count != null ? ` (${escapeHtml(count)} tareas)` : '');
+
+        const entry = levelHistory.find(h => h.level === i);
+        let duration = '';
+        if (entry) {
+          const start = parseMs(entry.enteredAt);
+          const end = entry.completedAt ? parseMs(entry.completedAt) : now;
+          duration = start == null || end == null ? '' : formatDuration(end - start);
+        }
+
+        nodes.push(pipelineNodeHTML(state, label, duration));
+      }
+
+      return nodes.join('<div class="pipeline-connector"></div>');
+    }
+
+    // Fase 2: los eventos de un driver nuevo traen "cause"; los de un driver
+    // viejo no (undefined) y caen en la regla anterior.
+    function isFailedEntry(ev) {
+      if (ev.exitCode !== 0) return true;
+      if (ev.cause === 'continue_sin_avance') return true;
+      if (ev.cause === 'sin_marca_con_avance') return false;
+      return ev.planStatus !== 'CONTINUE' && ev.planStatus !== 'COMPLETE';
+    }
+
+    function sessionLabel(ev) {
+      if (ev.planStatus && ev.cause) return escapeHtml(`${ev.planStatus} (${ev.cause})`);
+      if (ev.planStatus) return escapeHtml(ev.planStatus);
+      if (ev.cause) return escapeHtml(ev.cause);
+      return 'exit ' + escapeHtml(ev.exitCode);
+    }
+
+    // Fase 4 (M13): telemetria por sesion. Un driver viejo no manda "telemetry"
+    // (regla 5): las celdas muestran una raya y el acumulado muestra una raya tambien.
+    function modelEffortLabel(ev) {
+      if (!(ev.telemetry && ev.telemetry.model)) return '—';
+      // Telemetria parcial sin effort: solo el modelo, nunca "modelo / undefined".
+      return escapeHtml(ev.telemetry.effort ? `${ev.telemetry.model} / ${ev.telemetry.effort}` : ev.telemetry.model);
+    }
+
+    function costLabel(ev) {
+      return ev.telemetry && typeof ev.telemetry.costUsd === 'number' ? '$' + ev.telemetry.costUsd.toFixed(2) : '—';
+    }
+
+    function renderTotalCost(history) {
+      const el = $('totalCost');
+      const sub = $('totalCostSub');
+      const withCost = history.filter(ev => ev.telemetry && typeof ev.telemetry.costUsd === 'number');
+      if (withCost.length === 0) {
+        el.textContent = '—';
+        sub.textContent = 'sin datos de costo';
+        return;
+      }
+      const total = withCost.reduce((acc, ev) => acc + ev.telemetry.costUsd, 0);
+      el.textContent = '$' + total.toFixed(2);
+      sub.textContent = `${withCost.length} de ${history.length} sesiones con dato`;
+    }
+
+    // 2a I5: con tope (limits.maxCostUsd > 0) muestra acumulado / tope y la barra; sin tope, la oculta.
+    function renderCostCap(data) {
+      const view = costView(data);
+      const bar = $('costBar');
+      if (view.cap == null) {
+        bar.style.display = 'none';
+        return;
+      }
+      $('totalCost').textContent = view.text;
+      $('costBarFill').style.width = (view.pct == null ? 0 : view.pct) + '%';
+      bar.style.display = '';
+    }
+
+    function renderPipelineSessions(data) {
+      const history = data.history || [];
+      const nodes = [];
+
+      for (let i = 0; i < history.length; i++) {
+        const ev = history[i];
+        const failedEntry = isFailedEntry(ev);
+        const state = failedEntry ? 'error' : 'success';
+        const prevTimestamp = i > 0 ? parseMs(history[i - 1].timestamp) : parseMs(data.startedAt);
+        const evMs = parseMs(ev.timestamp);
+        const duration = prevTimestamp == null || evMs == null ? '' : formatDuration(evMs - prevTimestamp);
+        nodes.push(pipelineNodeHTML(state, `Sesión ${escapeHtml(ev.iter)}${escapeHtml(attemptLabel(ev))}`, duration));
+      }
+
+      const lastEntry = history[history.length - 1];
+      const lastEntryFailed = lastEntry && isFailedEntry(lastEntry);
+
+      if (LIVE_STATUSES.indexOf(data.globalStatus) !== -1) {
+        nodes.push(pipelineNodeHTML(levelNodeState(data.globalStatus), `Sesión ${history.length + 1}`, ''));
+      } else if ((data.globalStatus === 'FAILED' || data.globalStatus === 'BLOCKED') && !lastEntryFailed) {
+        nodes.push(pipelineNodeHTML('error', `Sesión ${history.length + 1}`, ''));
+      }
+
+      return nodes.join('<div class="pipeline-connector"></div>');
+    }
+
+    function renderPipeline(data) {
+      const container = $('pipeline-header');
+      container.innerHTML = data.totalLevels ? renderPipelineLevels(data) : renderPipelineSessions(data);
+    }
+
+    // Sesion cuya actividad se muestra: la elegida a mano o, por defecto, la en curso.
+    function chosenIter() {
+      return userIter != null ? userIter : defaultSessionIter(lastStatus);
+    }
+
+    function chosenIsLive(data) {
+      const cs = data && data.currentSession;
+      return !!(data && data.globalStatus === 'RUNNING' && cs && cs.iter != null && chosenIter() === cs.iter);
+    }
+
+    // La vista de actividad solo cuenta para vida y ritmo de poll si es la de la sesion en curso.
+    function activityForStatus(data) {
+      const cs = data && data.currentSession;
+      if (lastActivity && lastActivity.session && cs && lastActivity.session.iter === cs.iter) return lastActivity;
+      return null;
+    }
+
+    function renderLiveness() {
+      const el = $('liveness');
+      const info = livenessInfo(lastStatus, activityForStatus(lastStatus), Date.now());
+      if (!info) {
+        el.textContent = '';
+        el.style.display = 'none';
+        return;
+      }
+      const parts = [];
+      const waitText = waitReasonText(lastStatus);
+      const hasSession = !!(lastStatus && lastStatus.currentSession);
+      if (waitText != null && !hasSession) {
+        parts.push(waitText);
+      } else {
+        parts.push(info.secondsAgo == null ? 'sin actividad registrada' : `última actividad hace ${info.secondsAgo} s`);
+        if (waitText != null) parts.push(waitText);
+      }
+      if (info.remainingMs != null) {
+        parts.push(info.remainingMs > 0
+          ? `corte por inactividad en ${Math.ceil(info.remainingMs / 60000)} min`
+          : 'corte por inactividad inminente');
+      }
+      el.innerHTML = '<span class="pulse"></span>' + escapeHtml(parts.join(' · '));
+      el.classList.toggle('warn', info.warn);
+      el.style.display = 'block';
+    }
+
+    // Un solo intervalo de 1 s (vive solo mientras el polling esta activo): refresca la senal de vida y,
+    // si la sesion elegida esta viva, la linea "ahora" y el tiempo de cada subagente. Sin sesion viva no hay nada que mover.
+    function tick() {
+      safeRender('liveness', renderLiveness);
+      // Cuenta atras de la pausa y plazo de confirmacion de la orden sin esperar al siguiente poll.
+      if (lastStatus && lastStatus.globalStatus) safeRender('control-bar', () => renderControlBar(lastStatus), 'control-msg');
+      const view = lastActivity;
+      if (view && view.session && view.session.live === true) {
+        const now = Date.now();
+        // Con el cursor encima de un panel no se repinta: el tooltip y la seleccion de texto sobreviven.
+        // fetchActivity repinta igual en cada poll.
+        if (!$('timeline').matches(':hover')) safeRender('timeline', () => renderTimeline(view, now));
+        if (!$('live-activity').matches(':hover')) safeRender('live-activity', () => renderLiveActivity(view, now));
+      }
+    }
+
+    function startTicker() {
+      if (tickTimer == null) tickTimer = setInterval(tick, 1000);
+    }
+
+    function stopTicker() {
+      if (tickTimer != null) clearInterval(tickTimer);
+      tickTimer = null;
+    }
+
+    function renderSessionSelect(data) {
+      const select = $('session-select');
+      const options = sessionOptions(data);
+      const signature = JSON.stringify(options.map(o => [o.iter, o.label]));
+      // Solo repuebla si cambia la lista: reescribirla en cada poll cerraria el desplegable abierto.
+      if (select.dataset.sig !== signature) {
+        select.textContent = '';
+        if (options.length === 0) {
+          const empty = document.createElement('option');
+          empty.value = '';
+          empty.textContent = 'Sin sesiones';
+          select.appendChild(empty);
+        }
+        for (const o of options) {
+          const opt = document.createElement('option');
+          opt.value = String(o.iter);
+          opt.textContent = o.label;
+          select.appendChild(opt);
+        }
+        select.dataset.sig = signature;
+      }
+      const iter = chosenIter();
+      select.value = iter == null ? '' : String(iter);
+    }
+
+    function renderQuotaCard(id, label, win, observedAt) {
+      const el = $(id);
+      const pct = win && Number.isFinite(win.pct) ? Math.max(0, Math.min(100, win.pct)) : null;
+      if (pct == null) {
+        el.innerHTML = `<div class="label">${label}</div><div class="value">sin datos</div>`;
+        return;
+      }
+      const color = pct >= 85 ? 'var(--red)' : pct >= 60 ? 'var(--amber)' : 'var(--blue)';
+      const subs = [];
+      if (win.resetsAt) subs.push('reinicia ' + escapeHtml(timeLabel(win.resetsAt, false)));
+      if (observedAt) subs.push('observada ' + escapeHtml(timeLabel(observedAt, false)));
+      el.innerHTML = `<div class="label">${label}</div><div class="value">${pct} %</div>` +
+        `<div class="meter"><div style="width:${pct}%;background:${color}"></div></div>` +
+        `<div class="sub">${subs.join(' · ')}</div>`;
+    }
+
+    // V1 y V3: tablero por tarea con sus etapas y el badge de ciclos.
+    function renderTasksPanel(view) {
+      const rows = taskRows(view);
+      const head = '<h2>Tareas de la sesión <span class="tag">inferido</span></h2>';
+      if (!rows.length) {
+        $('tasks-panel').innerHTML = head + '<div class="empty">sin datos</div>';
+        return;
+      }
+      $('tasks-panel').innerHTML = head + rows.map(r => {
+        const chips = r.stages.map(s =>
+          `<span class="st ${s.cls}" title="${escapeHtml(s.label || s.text)}">${escapeHtml(s.text)}</span>`).join('');
+        return `<div class="task"><div class="name">${escapeHtml(r.code)}</div>` +
+          `<div class="stages">${chips}</div>` +
+          `<span class="rework ${r.badge.cls}">${escapeHtml(r.badge.text)}</span></div>`;
+      }).join('');
+    }
+
+    // V2 y V6: timeline por carril. Las marcas de commit se pintan siempre que haya commits (tambien en una
+    // sesion terminada); la linea "ahora" solo si nowPct no es null, es decir con la sesion viva.
+    function renderTimeline(view, nowMs) {
+      const layout = timelineLayout(view, nowMs, lastStatus && lastStatus.actions);
+      const head = '<h2>Línea de tiempo</h2>';
+      if (!layout) {
+        $('timeline').innerHTML = head + '<div class="empty">sin datos</div>';
+        return;
+      }
+      const rows = layout.lanes.map(l => {
+        const bars = l.bars.map(b => {
+          const cls = ['bar', b.cls, b.ko ? 'ko' : '', b.live ? 'live' : '', b.unclosed ? 'unclosed' : ''].filter(Boolean).join(' ');
+          return `<div class="${cls}" style="left:${b.leftPct}%;width:${b.widthPct}%" title="${escapeHtml(b.title)}"></div>`;
+        }).join('');
+        return `<div class="tl-row"><div class="tl-label" title="${escapeHtml(l.code)}">${escapeHtml(l.code)}</div>` +
+          `<div class="tl-track">${bars}</div></div>`;
+      }).join('');
+      const marks = layout.commits.map(c =>
+        `<div class="commit" style="left:${c.leftPct}%" title="${escapeHtml(c.title)}"></div>`).join('') +
+        layout.actions.map(a =>
+          `<div class="action-mark" style="left:${a.leftPct}%" title="${escapeHtml(a.title)}"></div>`).join('') +
+        (layout.nowPct != null ? `<div class="now" style="left:${layout.nowPct}%" title="ahora"></div>` : '');
+      const ticks = layout.ticks.map(t => `<span style="left:${t.leftPct}%">${escapeHtml(t.label)}</span>`).join('');
+      const legend = [
+        ['background:var(--blue)', 'implementer'],
+        ['background:var(--purple)', 'revisión'],
+        ['background:var(--amber)', 'fix-agent'],
+        ['background:#7d8da1', 'otro'],
+        ['background:var(--purple);box-shadow:inset 0 -3px 0 var(--red)', 'revisión rechazada'],
+        ['border:1px dashed var(--text)', 'sin cierre'],
+        ['background:var(--green)', 'commit'],
+        ['background:var(--teal)', 'acción'],
+        ['background:var(--red)', 'ahora']
+      ].map(([style, text]) => `<span><i style="${style}"></i>${text}</span>`).join('');
+      $('timeline').innerHTML = head +
+        `<div class="tl">${rows}<div class="tl-overlay">${marks}</div></div>` +
+        `<div class="tl-axis"><div></div><div class="ticks">${ticks}</div></div>` +
+        `<div class="legend">${legend}</div>`;
+    }
+
+    // V4: subagentes que siguen abiertos; en una sesion no viva se marcan "sin cierre" en vez de contar tiempo.
+    function renderLiveActivity(view, nowMs) {
+      const rows = liveRows(view, nowMs);
+      const head = '<h2>Actividad en vivo</h2>';
+      if (!rows.length) {
+        $('live-activity').innerHTML = head + '<div class="empty">Sin subagentes activos</div>';
+        return;
+      }
+      $('live-activity').innerHTML = head + rows.map(r => {
+        const when = r.unclosed ? 'sin cierre' : (formatDuration(r.elapsedMs) || '—');
+        return `<div class="act"><div class="who"><b>${escapeHtml(r.subagentType || 'subagente')} · ${escapeHtml(r.task == null ? 'otras' : r.task)}</b>` +
+          `<span>${escapeHtml(when)}</span></div>` +
+          `<div class="what">${escapeHtml(r.description || '')}</div>` +
+          `<div class="what">${escapeHtml(r.lastTool || '—')} · ${escapeHtml(formatTokens(r.tokens))} tokens</div></div>`;
+      }).join('');
+    }
+
+    function renderActivity(view) {
+      safeRender('activity-meta', () => {
+        if (!view || !view.available) {
+          $('activity-meta').textContent = 'sin datos de actividad';
+        } else {
+          $('activity-meta').textContent = view.session && view.session.live ? 'en vivo' : 'terminada';
+        }
+      });
+      const q = quotaView(view && view.quota);
+      safeRender('kpi-quota5h', () => renderQuotaCard('kpi-quota5h', 'Cuota 5 h', q && q.fiveHour, q && q.observedAt));
+      safeRender('kpi-quota7d', () => renderQuotaCard('kpi-quota7d', 'Cuota 7 días', q && q.sevenDay, q && q.observedAt));
+      safeRender('liveness', renderLiveness);
+      const now = Date.now();
+      safeRender('tasks-panel', () => renderTasksPanel(view));
+      safeRender('timeline', () => renderTimeline(view, now));
+      safeRender('live-activity', () => renderLiveActivity(view, now));
+    }
+
+    async function fetchActivity(iter) {
+      const seq = ++activitySeq;
+      let view = null;
+      try {
+        const res = await fetch(activityUrl(iter), { cache: 'no-store', signal: timeSignal() });
+        if (res.status !== 200) throw new Error('HTTP ' + res.status);
+        view = await res.json();
+      } catch (e) {
+        console.warn('dashboard: fallo al pedir la actividad', e);
+        view = null;
+      }
+      // El driver es global: se guarda aunque el usuario haya cambiado de sesion mientras tanto.
+      if (view && view.driver) lastDriver = view.driver;
+      // Si el usuario cambio de sesion mientras tanto, esta respuesta ya no aplica.
+      if (seq !== activitySeq) return;
+      // Sin datos: se limpia la vista para no dejar la de la sesion anterior.
+      lastActivity = view;
+      try {
+        renderActivity(view);
+      } catch (e) {
+        console.warn('dashboard: fallo al mostrar la actividad', e);
+      }
+    }
+
+    // Solo el estado del driver, para los polls en que no se pide la actividad. No renderiza nada.
+    async function fetchDriver() {
+      try {
+        const res = await fetch('/activity.json', { cache: 'no-store', signal: timeSignal() });
+        if (res.status !== 200) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        if (json && json.driver) lastDriver = json.driver;
+      } catch (e) {
+        console.warn('dashboard: fallo al pedir el estado del driver', e);
+      }
+    }
+
+    // I4: ultimas lineas de un log del servidor. Devuelve { text, retry }.
+    // Nombre nulo o 404 son definitivos (retry: false): se muestra "sin datos" y no se vuelve a pedir.
+    // Un fallo transitorio (otro status, error de red o tope de espera) da "sin datos" con retry: true,
+    // para que el siguiente render o "Actualizar ahora" vuelva a pedir. Nunca queda en "cargando".
+    async function fetchLogTail(name, tail) {
+      if (!name) return { text: 'sin datos', retry: false };
+      try {
+        const res = await fetch('/logs/' + encodeURIComponent(name) + '?' + tail, { cache: 'no-store', signal: timeSignal() });
+        if (res.status === 404) return { text: 'sin datos', retry: false };
+        if (!res.ok) return { text: 'sin datos', retry: true };
+        const text = await res.text();
+        return { text: text === '' ? '(vacío)' : text, retry: false };
+      } catch (e) {
+        return { text: 'sin datos', retry: true };
+      }
+    }
+
+    // Los logs se piden una vez por par de nombres: render se llama en cada poll y en "Actualizar ahora".
+    // Si un fallo es transitorio, finalLogsKey se limpia para que el siguiente render vuelva a pedir.
+    async function loadFinalLogs(info) {
+      const key = (info.logName || '') + '|' + (info.errName || '');
+      if (key === finalLogsKey) return;
+      finalLogsKey = key;
+      $('final-log').textContent = info.logName ? 'cargando…' : 'sin datos';
+      $('final-err').textContent = info.errName ? 'cargando…' : 'sin datos';
+      const [logRes, errRes] = await Promise.all([
+        fetchLogTail(info.logName, 'tail=30'),
+        fetchLogTail(info.errName, 'tail=20')
+      ]);
+      // Si mientras tanto el panel cambio de sesion u oculto, esta respuesta ya no aplica.
+      if (key !== finalLogsKey) return;
+      $('final-log').textContent = logRes.text;
+      $('final-err').textContent = errRes.text;
+      if (logRes.retry || errRes.retry) finalLogsKey = null;
+    }
+
+    // 2a I8: panel Rama; todo texto de git va escapado.
+    function renderGitPanel(data) {
+      const panel = $('git-panel');
+      const v = gitView(data.git);
+      if (!v) {
+        panel.style.display = 'none';
+        return;
+      }
+      if (v.error) {
+        $('git-body').innerHTML = `<div class="empty">Error de git: ${escapeHtml(v.error)}</div>`;
+      } else {
+        const items = v.commits.map(c => `<li><code>${escapeHtml(c.hash)}</code> ${escapeHtml(c.subject)}</li>`).join('');
+        $('git-body').innerHTML =
+          `<div>${escapeHtml(v.branchText)}</div>` +
+          `<div class="sub">${escapeHtml(v.aheadText)}</div>` +
+          (items ? `<ul>${items}</ul>` : '') +
+          `<div class="sub">${escapeHtml(v.diffText)} · ${escapeHtml(v.cleanText)}</div>`;
+      }
+      panel.style.display = '';
+    }
+
+    // Ola 3 I7: panel Tareas del plan; todo valor del plan o del checkpoint entra por textContent / setAttribute, nunca como HTML.
+    function renderPlanTasks(data) {
+      const panel = $('plan-tasks-panel');
+      // Otro plan: sus numeros de nivel no valen para el anterior. Se vacian elecciones y DOM antes de leer nada.
+      const planKey = data && data.planFile != null ? String(data.planFile) : null;
+      if (planKey !== planTasksPlan) {
+        planTasksPlan = planKey;
+        planTasksKey = null;
+        planLevelOpen.clear();
+        planLevelDefault.clear();
+        $('plan-tasks-body').textContent = '';
+      }
+      const v = planTasksView(data);
+      if (!v) {
+        panel.style.display = 'none';
+        planTasksKey = null;
+        return;
+      }
+      const key = JSON.stringify(v);
+      if (key === planTasksKey) {
+        panel.style.display = '';
+        return;
+      }
+      const body = $('plan-tasks-body');
+      // Antes de repintar se lee lo que el usuario cambio: solo cuenta un nivel cuyo open difiere del que dio la vista en el pintado anterior.
+      body.querySelectorAll('details[data-level]').forEach(d => {
+        const lvl = Number(d.dataset.level);
+        const choice = planLevelUserChoice(d.open, planLevelDefault.get(lvl));
+        if (choice === undefined) planLevelOpen.delete(lvl);
+        else planLevelOpen.set(lvl, choice);
+      });
+      body.textContent = '';
+      v.levels.forEach((lv, idx) => {
+        planLevelDefault.set(lv.level, lv.open);
+        const det = document.createElement('details');
+        det.className = 'tk-level';
+        det.dataset.level = String(lv.level);
+        det.open = planLevelOpenState(lv.open, planLevelOpen.get(lv.level)) === true;
+        const sum = document.createElement('summary');
+        sum.textContent = `Nivel ${lv.level} · ${lv.doneCount}/${lv.total} hechas` + (idx === 0 && v.truncated ? ' · lista recortada' : '');
+        det.appendChild(sum);
+        lv.items.forEach(tk => {
+          const row = document.createElement('div');
+          row.className = 'tk-item';
+          const idEl = document.createElement('span');
+          idEl.className = 'tk-id';
+          idEl.textContent = tk.id;
+          const titleEl = document.createElement('span');
+          titleEl.textContent = tk.title;
+          const badge = document.createElement('span');
+          badge.className = 'badge ' + tk.badgeCls;
+          badge.textContent = tk.badgeText;
+          row.appendChild(idEl);
+          row.appendChild(titleEl);
+          row.appendChild(badge);
+          const hashes = (tk.commit ? [{ hash: tk.commit, short: tk.commitShort }] : []).concat(tk.fixCommits);
+          hashes.forEach(h => {
+            const wrap = document.createElement('span');
+            wrap.className = 'tk-hash';
+            const code = document.createElement('code');
+            code.textContent = h.short;
+            const btn = document.createElement('button');
+            btn.className = 'copy-btn';
+            btn.type = 'button';
+            btn.textContent = 'Copiar';
+            btn.setAttribute('data-cmd', h.hash);
+            wrap.appendChild(code);
+            wrap.appendChild(btn);
+            row.appendChild(wrap);
+          });
+          det.appendChild(row);
+        });
+        body.appendChild(det);
+      });
+      planTasksKey = key;
+      panel.style.display = '';
+    }
+
+    // Ola 3 D3: panel Pendiente de integrar. Solo texto: no ejecuta nada, los pasos los hace una persona.
+    function renderIntegration(data) {
+      const panel = $('integration-panel');
+      const v = integrationView(data, lastFinalReview);
+      if (!v) {
+        panel.style.display = 'none';
+        return;
+      }
+      const body = $('integration-body');
+      body.textContent = '';
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + v.badgeCls;
+      badge.textContent = v.badgeText;
+      body.appendChild(badge);
+      [v.branchText, v.aheadText + ' · ' + v.cleanText, v.countsText].forEach(text => {
+        const line = document.createElement('div');
+        line.className = 'sub';
+        line.textContent = text;
+        body.appendChild(line);
+      });
+      const list = document.createElement('ol');
+      list.className = 'ig-steps';
+      v.steps.forEach(step => {
+        const li = document.createElement('li');
+        li.textContent = step;
+        list.appendChild(li);
+      });
+      body.appendChild(list);
+      panel.style.display = '';
+    }
+
+    // Repinta el panel de integracion con el ultimo status; lo usa fetchFinalReview al cambiar lastFinalReview.
+    function repaintIntegration() {
+      if (lastStatus) safeRender('integration-panel', () => renderIntegration(lastStatus), 'integration-body');
+    }
+
+    // 2a I9: panel Revision final; el markdown crudo solo entra por textContent, nunca como HTML.
+    function renderFinalReview(review) {
+      const panel = $('final-review-panel');
+      const v = finalReviewView(review);
+      if (!v) {
+        hideFinalReviewPanel();
+        return;
+      }
+      const body = $('final-review-body');
+      const raw = $('final-review-raw');
+      body.textContent = '';
+      if (v.verdict) {
+        const verdict = document.createElement('div');
+        verdict.textContent = 'Veredicto: ' + v.verdict;
+        body.appendChild(verdict);
+      }
+      if (v.structured) {
+        const counts = document.createElement('div');
+        counts.className = 'sub';
+        counts.innerHTML = v.counts
+          .map(c => `<span class="${c.danger ? 'sev-critical' : ''}">${escapeHtml(c.severity)}: ${escapeHtml(c.n)}</span>`)
+          .join(' · ');
+        body.appendChild(counts);
+        if (v.findings.length) {
+          const list = document.createElement('ul');
+          list.innerHTML = v.findings
+            .map(f => `<li><span class="${f.severity === 'CRITICAL' ? 'sev-critical' : ''}">${escapeHtml(f.severity)}</span> ${escapeHtml(f.title)}</li>`)
+            .join('');
+          body.appendChild(list);
+        }
+        raw.style.display = 'none';
+        raw.textContent = '';
+      } else {
+        raw.textContent = v.raw;
+        raw.style.display = '';
+      }
+      panel.style.display = '';
+    }
+
+    // Oculta el panel Revision final; lo usan el render sin datos, el fallo de la peticion y el paso a sin revision.
+    function hideFinalReviewPanel() {
+      $('final-review-panel').style.display = 'none';
+      lastFinalReview = null;
+    }
+
+    // Servidor viejo: la ruta devuelve HTML y json() falla; en cualquier fallo el panel se oculta.
+    // Devuelve true solo si el pedido respondio 200 y el render termino bien; nunca lanza.
+    async function fetchFinalReview() {
+      try {
+        const res = await fetch('/final-review.json', { cache: 'no-store', signal: timeSignal() });
+        if (res.status !== 200) throw new Error('HTTP ' + res.status);
+        const json = await res.json();
+        let rendered = false;
+        safeRender('final-review-panel', () => { renderFinalReview(json); rendered = true; });
+        if (!rendered) hideFinalReviewPanel();
+        lastFinalReview = rendered && json && json.exists === true ? json : null;
+        repaintIntegration();
+        return rendered;
+      } catch (e) {
+        console.warn('dashboard: fallo al pedir la revision final', e);
+        hideFinalReviewPanel();
+        repaintIntegration();
+        return false;
+      }
+    }
+
+    function renderFinalPanel(data) {
+      const info = finalPanelInfo(data);
+      const panel = $('final-panel');
+      if (!info.visible) {
+        panel.style.display = 'none';
+        finalLogsKey = null;
+        return;
+      }
+      panel.className = 'final-panel final-' + info.globalStatus;
+      $('reason').textContent = info.reason || 'sin datos';
+      $('final-cause').textContent = info.cause || '—';
+      $('final-plan-reason').textContent = info.planStatusReason || '—';
+      $('final-action').textContent = info.action;
+      $('final-resume').innerHTML = info.sessionId
+        ? copyableCommandHTML(resumeCommand(data.projectPath, info.sessionId))
+        : 'sin datos';
+      panel.style.display = 'block';
+      loadFinalLogs(info).catch(e => console.warn('dashboard: fallo al cargar los logs finales', e));
+    }
+
+    function render(data) {
+      lastStatus = data;
+      if (!data.globalStatus) {
+        $('meta').textContent = 'Esperando al driver…';
+        safeRender('liveness', renderLiveness);
+        return;
+      }
+
+      safeRender('meta', () => {
+        $('meta').textContent =
+          `${projectLabel(data.projectPath)} — ${data.planFile || '(plan no detectado)'} — ${data.workBranch || 'rama sin dato'} — actualizado ${timeLabel(data.updatedAt, true)}`;
+      });
+
+      safeRender('globalStatus', () => {
+        const badge = $('globalStatus');
+        badge.textContent = data.globalStatus;
+        badge.className = 'badge badge-' + data.globalStatus;
+      });
+      safeRender('liveness', renderLiveness);
+
+      safeRender('kpi-session', () => {
+        const history = data.history || [];
+        const iter = data.currentSession && data.currentSession.iter != null
+          ? data.currentSession.iter
+          : (history.length ? history[history.length - 1].iter : null);
+        $('kpi-session').textContent = iter == null ? '—' : `Sesión ${iter} · ${history.length} en historial`;
+      });
+      safeRender('kpi-elapsed', () => {
+        $('kpi-elapsed').textContent = formatDuration(elapsedMs(data, Date.now())) || '—';
+      });
+      safeRender('totalCost', () => { renderTotalCost(data.history || []); renderCostCap(data); });
+      safeRender('phase-badge', () => {
+        const badge = $('phase-badge');
+        const pb = phaseBadge(data);
+        badge.textContent = pb ? pb.text : '';
+        badge.style.display = pb ? '' : 'none';
+      });
+      safeRender('perm-badge', () => {
+        const badge = $('perm-badge');
+        const pv = permissionsView(data);
+        badge.textContent = pv ? pv.text : '';
+        badge.className = 'badge perm-badge' + (pv ? ' ' + pv.cls : '');
+        badge.style.display = pv ? '' : 'none';
+      });
+      safeRender('kpi-sessions', () => {
+        const v = sessionsView(data);
+        $('kpi-sessions').textContent = v ? v.text : '—';
+      });
+      safeRender('kpi-retries', () => { $('kpi-retries').textContent = retriesView(data).text; });
+      safeRender('kpi-eta', () => {
+        const est = endEstimate(data, Date.now());
+        $('kpi-eta').textContent = est == null ? '—'
+          : (est.available === false ? 'sin estimación' : durationText(est.remainingMs) + ' (' + clockLabel(est.etaMs) + ')');
+      });
+      safeRender('git-panel', () => renderGitPanel(data));
+
+      safeRender('pipeline-header', () => renderPipeline(data));
+      safeRender('control-bar', () => renderControlBar(data), 'control-msg');
+      safeRender('actions-panel', () => renderActionsPanel(data));
+
+      const currentSessionEl = $('currentSession');
+      if (data.currentSession && data.currentSession.sessionId) {
+        // Solo reescribe el innerHTML si el sessionId cambió -- el poll corre
+        // cada 4s y reescribir en cada ciclo borraría una seleccion manual del
+        // comando o el feedback "Copiado" en curso.
+        if (currentSessionEl.dataset.sid !== data.currentSession.sessionId) {
+          const cmd = resumeCommand(data.projectPath, data.currentSession.sessionId);
+          currentSessionEl.innerHTML = `Sesión en curso: ${copyableCommandHTML(cmd)}`;
+          currentSessionEl.dataset.sid = data.currentSession.sessionId;
+        }
+        currentSessionEl.style.display = 'block';
+      } else {
+        delete currentSessionEl.dataset.sid;
+        currentSessionEl.style.display = 'none';
+      }
+
+      const fill = $('progressFill');
+      if (data.totalLevels) {
+        const pct = Math.min(100, Math.round(((data.currentLevel || 0) / data.totalLevels) * 100));
+        fill.style.width = pct + '%';
+      } else {
+        fill.style.width = '0%';
+      }
+
+      safeRender('session-select', () => renderSessionSelect(data));
+
+      safeRender('final-panel', () => renderFinalPanel(data));
+      safeRender('integration-panel', () => renderIntegration(data), 'integration-body');
+      safeRender('plan-tasks-panel', () => renderPlanTasks(data), 'plan-tasks-body');
+
+      safeRender('history-body', () => {
+        const body = $('history-body');
+        body.innerHTML = '';
+        for (const ev of (data.history || [])) {
+          const tr = document.createElement('tr');
+          const logName = ev.logPath ? ev.logPath.split(/[\\\/]/).pop() : '';
+          const logCell = logName
+            ? `<td><a href="/logs/${escapeHtml(encodeURIComponent(logName))}" target="_blank" rel="noopener">ver log</a></td>`
+            : '<td>-</td>';
+          const tc = telemetryCells(ev);
+          tr.innerHTML = `<td>${escapeHtml(ev.iter)}${escapeHtml(attemptLabel(ev))}</td><td>${timeLabel(ev.timestamp, true)}</td>` +
+            `<td>${escapeHtml(tc.duration)}</td><td>${escapeHtml(tc.turns)}</td><td>${escapeHtml(tc.inputTokens)}</td>` +
+            `<td>${escapeHtml(tc.outputTokens)}</td><td>${escapeHtml(tc.cacheTokens)}</td>` +
+            `<td>${sessionLabel(ev)}</td>` +
+            `<td>${modelEffortLabel(ev)}</td><td>${costLabel(ev)}</td>` +
+            logCell +
+            commandCellHTML(data.projectPath, ev.sessionId);
+          body.appendChild(tr);
+        }
+      });
+    }
+
+    // 2b: el token del fragmento se guarda para la pestana y el fragmento se limpia de la barra de direcciones.
+    function initControlToken() {
+      const fromHash = readFragmentToken(location.hash);
+      if (fromHash) {
+        try { sessionStorage.setItem(TOKEN_KEY, fromHash); } catch (e) { /* sin almacenamiento: el token vale solo para esta carga */ }
+        try { window.history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* no critico */ }
+        return fromHash;
+      }
+      try { return readFragmentToken('#t=' + sessionStorage.getItem(TOKEN_KEY)); } catch (e) { return null; }
+    }
+
+    // Hay una peticion en curso o una orden enviada que el driver aun no confirma.
+    function controlIsBusy() {
+      if (controlBusy) return true;
+      return pendingControlId != null &&
+        controlResultView(pendingControlId, lastStatus, Date.now() - pendingSentAt).state === 'pending';
+    }
+
+    function setControlNotice(text) {
+      pendingControlId = null;
+      controlNotice = text;
+      renderControlBar(lastStatus);
+    }
+
+    async function sendControl(action, params) {
+      if (controlIsBusy() || !controlToken) return;
+      controlBusy = true;
+      pendingControlId = null;
+      controlNotice = '';
+      renderControlBar(lastStatus);
+      const req = controlRequest(action, params, controlToken);
+      let httpStatus = 0;
+      let body = null;
+      try {
+        const res = await fetch(req.path, Object.assign({ cache: 'no-store', signal: timeSignal() }, req.init));
+        httpStatus = res.status;
+        try { body = await res.json(); } catch (e) { body = null; }
+      } catch (e) {
+        httpStatus = 0;
+      }
+      controlBusy = false;
+      if (httpStatus === 202 && body && typeof body.id === 'string') {
+        pendingControlId = body.id;
+        pendingSentAt = Date.now();
+      } else {
+        controlNotice = controlErrorText(httpStatus, body);
+      }
+      renderControlBar(lastStatus);
+    }
+
+    function disarmStop() {
+      clearTimeout(stopTimer);
+      stopTimer = null;
+      stopArmedAt = null;
+      $('act-stop').textContent = 'Detener';
+    }
+
+    function closeParamsForm() {
+      $('params-form').style.display = 'none';
+    }
+
+    function closeAnswerForm() {
+      $('answer-form').style.display = 'none';
+    }
+
+    function closeOpenMenu() {
+      $('open-menu').style.display = 'none';
+    }
+
+    function openParamsForm() {
+      const cur = paramsCurrent(lastStatus);
+      for (const k of PARAM_FIELDS) $('p-' + k).value = cur[k] == null ? '' : String(cur[k]);
+      $('params-form').style.display = '';
+    }
+
+    // Barra de acciones segun estado, canal y token; el mensaje muestra la orden enviada o el aviso de la pagina.
+    function renderControlBar(data) {
+      const view = controlBarView(data, lastDriver, !!controlToken);
+      $('control-bar').style.display = view.visible ? '' : 'none';
+      if (!view.visible) {
+        closeParamsForm();
+        closeAnswerForm();
+        closeOpenMenu();
+        disarmStop();
+        // Sin barra no hay orden que esperar: se limpian la orden pendiente y el mensaje.
+        pendingControlId = null;
+        controlNotice = '';
+        $('control-msg').textContent = '';
+        return;
+      }
+      let result = controlResultView(pendingControlId, data, Date.now() - pendingSentAt);
+      const confirmed = !!(data && data.control && data.control.last && data.control.last.id === pendingControlId);
+      if (result.state === 'done' && !confirmed) {
+        // Plazo vencido sin confirmacion: se rehabilitan los botones y el aviso queda en la pagina.
+        controlNotice = result.text;
+        pendingControlId = null;
+        result = { state: 'idle', text: '' };
+      }
+      const busy = controlBusy || result.state === 'pending';
+      const shown = {
+        'act-pause': view.actions.indexOf('pause') !== -1,
+        'act-resume': view.actions.indexOf('resume') !== -1,
+        'act-stop': view.actions.indexOf('stop') !== -1,
+        'act-params': view.actions.indexOf('set-params') !== -1,
+        'act-answer': view.actions.indexOf('answer') !== -1,
+        'act-retry-session': view.actions.indexOf('retry-session') !== -1,
+        'act-retry-level': view.actions.indexOf('retry-level') !== -1,
+        'act-open': view.actions.indexOf('open') !== -1
+      };
+      for (const id of Object.keys(shown)) {
+        $(id).style.display = shown[id] ? '' : 'none';
+        $(id).disabled = busy;
+      }
+      if (!shown['act-stop']) disarmStop();
+      if (!shown['act-params']) closeParamsForm();
+      if (!shown['act-answer']) closeAnswerForm();
+      if (!shown['act-open']) closeOpenMenu();
+      $('params-send').disabled = busy;
+      $('answer-send').disabled = busy;
+      const targets = openTargets(data);
+      for (const t of ['folder', 'log', 'terminal']) {
+        const el = $('open-' + t);
+        el.style.display = targets.indexOf(t) !== -1 ? '' : 'none';
+        el.disabled = busy;
+      }
+      $('control-msg').textContent = pendingControlId != null ? result.text : controlNotice;
+      const disabledEl = $('control-disabled');
+      disabledEl.textContent = view.message || '';
+      disabledEl.style.display = view.message ? '' : 'none';
+      const paused = pausedInfo(data, Date.now());
+      const pausedEl = $('paused-info');
+      pausedEl.textContent = paused ? paused.text : '';
+      pausedEl.style.display = paused ? '' : 'none';
+      const awaiting = awaitingInfo(data, Date.now());
+      const awaitingEl = $('awaiting-info');
+      awaitingEl.textContent = awaiting ? awaiting.text + (awaiting.reason ? '\n' + awaiting.reason : '') : '';
+      awaitingEl.style.display = awaiting ? '' : 'none';
+    }
+
+    // Panel Acciones: las 20 ultimas del status, la mas nueva primero; todo texto del status va escapado.
+    function renderActionsPanel(data) {
+      const rows = actionRows(data);
+      const items = rows.length
+        ? rows.map(r => '<li>' + escapeHtml(r.time + ' · ' + r.action + ' · ' + r.result + (r.detail ? ' · ' + r.detail : '')) + '</li>').join('')
+        : '<li class="empty">Sin acciones</li>';
+      $('actions-panel').innerHTML = '<h2>Acciones</h2><ul class="actions-list" id="actions-list">' + items + '</ul>';
+    }
+
+    function setPollState(text) {
+      $('poll-state').textContent = text;
+    }
+
+    // Detiene todo el polling (status y actividad). La ultima actividad ya se pidio en pollStatus.
+    // staleCut: corte por heartbeat vencido; el aviso lo da showStaleNotice, asi que aqui solo badge "sin senal".
+    function stopPolling(data, staleCut) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+      stopTicker();
+      const dead = driverDeadInfo(data, lastDriver);
+      if (dead && staleCut === true) {
+        const badge = $('globalStatus');
+        badge.textContent = data.globalStatus + ' · sin señal';
+        badge.className = 'badge rw-warn';
+        setPollState('');
+        $('refresh-now').style.display = 'none';
+        return;
+      }
+      if (dead) {
+        const badge = $('globalStatus');
+        badge.textContent = dead.badge;
+        badge.className = 'badge rw-warn';
+        setPollState(dead.message);
+      } else {
+        setPollState(`Actualización automática detenida: la corrida terminó (${data.globalStatus}). ` +
+          'Si la corrida se relanzó, abre la URL nueva. El servidor se apaga solo tras un rato sin peticiones.');
+      }
+      $('refresh-now').style.display = '';
+    }
+
+    // H1 bis: aviso de heartbeat vencido largo. Se pinta con textContent y sustituye a "Actualizar ahora".
+    function showStaleNotice(sinceMs) {
+      $('stale-stop-text').textContent = staleStopText(sinceMs);
+      $('stale-stop-notice').style.display = '';
+      $('refresh-now').style.display = 'none';
+    }
+
+    function hideStaleNotice() {
+      $('stale-stop-notice').style.display = 'none';
+    }
+
+    async function pollStatus() {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+      let httpStatus = 0;
+      let data = null;
+      let renderError = '';
+      try {
+        const res = await fetch('/status.json', { cache: 'no-store', signal: timeSignal() });
+        httpStatus = res.status;
+        // 503: el status existe pero esta ilegible un momento; no se parsea y se conserva el ultimo render.
+        if (httpStatus === 200) data = await res.json();
+      } catch (e) {
+        httpStatus = 0;
+        data = null;
+        $('meta').textContent = 'Sin conexión con el driver...';
+      }
+
+      if (httpStatus === 200 && data) {
+        const prev = prevStatus;
+        const wasFirst = firstPoll;
+        firstPoll = false;
+        // Un fallo al mostrar no debe matar el polling: el siguiente poll se programa siempre.
+        try {
+          render(data);
+          if (data.globalStatus) {
+            prevStatus = data.globalStatus;
+            // Actividad: en vivo, en cada poll; con status final, sin vista aun o al cambiar de estado (p. ej. RUNNING a PAUSED), una vez por cambio.
+            let askedActivity = false;
+            if (chosenIsLive(data) || isFinalStatus(data.globalStatus) || lastActivity == null || prev !== data.globalStatus) {
+              askedActivity = true;
+              await fetchActivity(chosenIter());
+            }
+            // En un estado vivo el driver se consulta en cada poll aunque no se pida la actividad.
+            if (LIVE_STATUSES.indexOf(data.globalStatus) !== -1 && !askedActivity) await fetchDriver();
+            // La barra se pinta antes de fijar lastDriver: se repinta aqui para ocultarla si el driver esta muerto.
+            try { renderControlBar(data); } catch (e) { /* un fallo de la barra no corta el aviso */ }
+            // Despues de pedir el driver: el polling se detiene en el mismo poll que lo detecta muerto.
+            maybeNotify(prev, data, wasFirst);
+          }
+          // La revision final se pide al cargar y al pasar finalReviewExists a true, no en cada poll.
+          const reviewExists = !!(data.phase && data.phase.finalReviewExists === true);
+          let reviewOk = true;
+          if (shouldFetchFinalReview(prevReviewExists, reviewExists, firstReviewCheck)) reviewOk = await fetchFinalReview();
+          if (shouldHideFinalReview(data, reviewExists, firstReviewCheck)) {
+            hideFinalReviewPanel();
+            repaintIntegration();
+          }
+          // Si el pedido falla con la revision presente, no se avanza el estado y se reintenta en el siguiente poll.
+          if (reviewOk || !reviewExists) { prevReviewExists = reviewExists; firstReviewCheck = false; }
+        } catch (e) {
+          console.warn('dashboard: fallo al procesar el status', e);
+          renderError = 'Error al mostrar el status: ' + e.message;
+        }
+      }
+
+      const delay = nextPollDelay(httpStatus, data, lastDriver ? { driver: lastDriver } : null);
+      const stale = staleStopState(staleSince, httpStatus, data, lastDriver, Date.now());
+      staleSince = stale.since;
+      if (delay === null) {
+        stopPolling(data);
+      } else if (stale.stop) {
+        stopPolling(data, true);
+        showStaleNotice(staleSince);
+      } else {
+        hideStaleNotice();
+        setPollState(renderError || (httpStatus === 503 ? 'Status no disponible un momento; reintentando…' : ''));
+        $('refresh-now').style.display = 'none';
+        startTicker();
+        pollTimer = setTimeout(pollStatus, delay);
+      }
+    }
+
+    $('notify-toggle').addEventListener('click', toggleNotify);
+    $('refresh-now').addEventListener('click', async () => {
+      const btn = $('refresh-now');
+      btn.disabled = true;
+      try {
+        await pollStatus();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    $('stale-retry').addEventListener('click', () => {
+      staleSince = null;
+      hideStaleNotice();
+      pollStatus();
+    });
+    $('session-select').addEventListener('change', (e) => {
+      const iter = Number(e.target.value);
+      if (e.target.value === '' || isNaN(iter)) return;
+      userIter = (lastStatus && iter === defaultSessionIter(lastStatus)) ? null : iter;
+      fetchActivity(chosenIter());
+    });
+
+    $('act-pause').addEventListener('click', () => sendControl('pause', {}));
+    $('act-resume').addEventListener('click', () => sendControl('resume', {}));
+    $('act-stop').addEventListener('click', () => {
+      if (stopConfirmState(stopArmedAt, Date.now()) === 'armed') {
+        disarmStop();
+        sendControl('stop', {});
+        return;
+      }
+      stopArmedAt = Date.now();
+      $('act-stop').textContent = 'Confirmar detener';
+      clearTimeout(stopTimer);
+      stopTimer = setTimeout(disarmStop, STOP_CONFIRM_MS);
+    });
+    $('act-params').addEventListener('click', () => {
+      if ($('params-form').style.display === 'none') openParamsForm();
+      else closeParamsForm();
+    });
+    $('params-cancel').addEventListener('click', closeParamsForm);
+    $('answer-note').textContent = TERMINAL_NOTE;
+    $('act-answer').addEventListener('click', () => {
+      if ($('answer-form').style.display === 'none') $('answer-form').style.display = '';
+      else closeAnswerForm();
+    });
+    $('answer-cancel').addEventListener('click', closeAnswerForm);
+    $('answer-send').addEventListener('click', async () => {
+      if (controlIsBusy()) return;
+      const text = $('answer-text').value;
+      const err = answerTextError(text);
+      if (err) {
+        setControlNotice(err);
+        return;
+      }
+      const r = actionParams('answer', { text: text });
+      await sendControl(r.action, r.params);
+      // Solo se vacia el cuadro si el servidor acepto la orden (202): sin orden pendiente, el texto se conserva.
+      if (pendingControlId != null) {
+        $('answer-text').value = '';
+        closeAnswerForm();
+      }
+    });
+    $('act-retry-session').addEventListener('click', () => {
+      const r = actionParams('retry-session');
+      sendControl(r.action, r.params);
+    });
+    $('act-retry-level').addEventListener('click', () => {
+      const r = actionParams('retry-level');
+      sendControl(r.action, r.params);
+    });
+    $('act-open').addEventListener('click', () => {
+      if ($('open-menu').style.display === 'none') $('open-menu').style.display = '';
+      else closeOpenMenu();
+    });
+    for (const t of ['folder', 'log', 'terminal']) {
+      $('open-' + t).addEventListener('click', () => {
+        closeOpenMenu();
+        const r = actionParams('open', openParams(t, lastStatus));
+        sendControl(r.action, r.params);
+      });
+    }
+    $('params-send').addEventListener('click', () => {
+      if (controlIsBusy()) return;
+      const form = {};
+      for (const k of PARAM_FIELDS) form[k] = $('p-' + k).value;
+      const res = changedParams(paramsCurrent(lastStatus), form);
+      if (res.invalid.length) {
+        setControlNotice('Parámetro inválido: ' + res.invalid[0]);
+        return;
+      }
+      if (Object.keys(res.params).length === 0) {
+        setControlNotice('Sin cambios');
+        return;
+      }
+      closeParamsForm();
+      sendControl('set-params', res.params);
+    });
+
+    notifyPref = loadNotifyPref();
+    renderNotifyButton();
+    // Antes del primer poll: lee el token del fragmento y lo quita de la barra de direcciones.
+    let controlToken = initControlToken();
+    pollStatus();
+</script>
+</body>
+</html>

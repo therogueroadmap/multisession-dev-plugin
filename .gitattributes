@@ -1,0 +1,5 @@
+# Fixtures JSONL comparados byte a byte: con core.autocrlf=true el checkout los pasaria a CRLF.
+tests/fixtures/*.jsonl -text
+# Fixtures del dashboard (logs y status): la spec exige LF; sin esto un checkout limpio los pasaria a CRLF.
+tests/fixtures/dashboard/*.log -text
+tests/fixtures/dashboard/*.json -text
