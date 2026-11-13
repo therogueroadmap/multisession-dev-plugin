@@ -2780,7 +2780,7 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $closeStart | Should BeGreaterThan -1
         $endMark = $text.IndexOf('Al terminar, agrega como última línea de tu respuesta EXACTAMENTE una de estas', $closeStart)
         $endMark | Should BeGreaterThan -1
-        foreach ($lit in @('**Veredicto:** <texto breve del veredicto>', '| # | Severidad | Ubicación | Descripción | Fix sugerido |', 'La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR')) {
+        foreach ($lit in @('**Veredicto:** <texto breve del veredicto>', '| # | Severidad | Ubicación | Descripción | Fix sugerido |', 'La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR', 'sección `## Rulings` con todas las líneas', 'rogue-workflow:reviewer')) {
             $text | Should Match ([regex]::Escape($lit))
             $idx = $text.IndexOf($lit, $closeStart)
             $idx | Should BeGreaterThan $closeStart

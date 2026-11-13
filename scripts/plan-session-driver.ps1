@@ -145,10 +145,14 @@ normal.
 
 El plan de implementación __PLAN__ ya tiene todos sus niveles implementados.
 
-Corre ÚNICAMENTE la revisión final del código completo: despacha un reviewer
-read-only con modelo Opus sobre toda la implementación y escribe sus findings
-en el archivo __MARKER__. NO ejecutes finishing-a-development-branch ni hagas
-merge, push ni PR: esa fase es interactiva y la hará un humano después.
+Corre ÚNICAMENTE la revisión final del código completo: despacha
+`rogue-workflow:reviewer` con `model: opus` sobre toda la implementación, con la
+plantilla `final-reviewer-prompt.md` de la skill
+rogue-workflow:subagent-driven-development, y pásale los hallazgos aparcados
+(parked) del ledger `progress.md`, que está en la carpeta que imprime
+`scripts/sdd-workspace __PLAN__` de esa skill. Escribe sus findings en el
+archivo __MARKER__. NO ejecutes la ola de fixes ni el cierre, ni hagas merge,
+push ni PR: esa fase es interactiva y la hará un humano después.
 
 Esta sesión corre en modo headless, sin supervisión humana:
 [AUTOPILOT: full], incluida autorización previa para "git commit".
@@ -172,6 +176,11 @@ El archivo __MARKER__ debe seguir este formato, porque el dashboard lo lee:
 La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR, en mayúsculas
 y sin otro texto. Una fila por finding. Si no hay findings, deja la tabla solo
 con el encabezado. Puedes agregar secciones de detalle debajo de la tabla.
+
+Debajo de la tabla agrega siempre una sección `## Rulings` con todas las líneas
+`Ruling:` del ledger, en orden y textuales: son decisiones que el controlador
+tomó sin un humano y el humano debe verlas. Si el ledger no existe o no tiene
+ninguna, escribe `None.` en esa sección.
 
 Al terminar, agrega como última línea de tu respuesta EXACTAMENTE una de estas
 marcas (nada más en esa línea):
