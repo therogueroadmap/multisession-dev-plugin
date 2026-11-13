@@ -1,0 +1,14 @@
+{
+  "name": "multisession-dev-plugin",
+  "description": "Runs a long implementation plan across chained headless Claude Code sessions, one per dependency level, with a live dashboard.",
+  "version": "0.1.0",
+  "author": {
+    "name": "José R. Pérez Sandó",
+    "email": "contact@therogueroadmap.com"
+  },
+  "homepage": "https://github.com/therogueroadmap/multisession-dev-plugin",
+  "repository": "https://github.com/therogueroadmap/multisession-dev-plugin",
+  "license": "MIT",
+  "keywords": ["driver", "headless", "multi-session", "dashboard", "claude-code"],
+  "dependencies": ["rogue-workflow"]
+}

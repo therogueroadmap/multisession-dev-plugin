@@ -8,8 +8,9 @@ write with my planning skills.
 
 ## Status
 
-Under construction. It is not a Claude Code plugin yet (no `plugin.json`), so it is not in the
-[catalog](https://github.com/therogueroadmap/marketplace). I publish it to work on it in the open.
+Version 0.1.0. Under construction: it is not in the
+[catalog](https://github.com/therogueroadmap/marketplace) yet.
+I publish it to work on it in the open.
 
 ## Requirements
 

@@ -125,7 +125,7 @@ function Assert-ProjectIsRepo {
     if (Test-GitRepo -RepoRoot $ProjectPath) { return }
     $repos = @(Get-ChildGitRepos -Path $ProjectPath)
     if ($repos.Count -gt 0) {
-        throw "GitWorkspace: '$ProjectPath' no es un repositorio git pero contiene los repos: $($repos -join ', '). Este driver es single-repo: usa -WorkDir <repo> con un plan de ese repo, o ejecuta el plan con my-subagent-driven-development si es multi-repo."
+        throw "GitWorkspace: '$ProjectPath' no es un repositorio git pero contiene los repos: $($repos -join ', '). Este driver es single-repo: usa -WorkDir <repo> con un plan de ese repo, o ejecuta el plan con rogue-workflow:subagent-driven-development si es multi-repo."
     }
     throw "GitWorkspace: '$ProjectPath' no es un repositorio git."
 }

@@ -187,12 +187,12 @@ Describe 'GitWorkspace' {
             $repo = New-TempRepo -Branches @('main')
             { Assert-ProjectIsRepo -ProjectPath $repo } | Should Not Throw
         }
-        It 'en una raiz multi-repo nombra los repos y sugiere -WorkDir o my-subagent-driven-development' {
+        It 'en una raiz multi-repo nombra los repos y sugiere -WorkDir o rogue-workflow:subagent-driven-development' {
             $root = New-MultiRepoRoot -Repos @('web', 'api')
             $msg = Get-ThrownMessage { Assert-ProjectIsRepo -ProjectPath $root }
             $msg.Contains('contiene los repos: api, web') | Should Be $true
             $msg.Contains('-WorkDir') | Should Be $true
-            $msg.Contains('my-subagent-driven-development') | Should Be $true
+            $msg.Contains('rogue-workflow:subagent-driven-development') | Should Be $true
         }
         It 'sin subrepos conserva el mensaje "no es un repositorio git"' {
             $root = New-MultiRepoRoot -Plain @('docs')

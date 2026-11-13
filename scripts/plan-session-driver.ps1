@@ -306,7 +306,7 @@ sesión: es una corrida automatizada cuya salida queda en logs, y necesita prosa
 normal.
 
 Ejecuta el plan de implementación $planRelativeForPrompt con la skill
-my-subagent-driven-development, pero ejecuta ÚNICAMENTE el próximo nivel de
+rogue-workflow:subagent-driven-development, pero ejecuta ÚNICAMENTE el próximo nivel de
 dependencia pendiente (búscalo en .controller-state.json; si no existe
 checkpoint, empieza por el primer nivel). Completa su ciclo de review/fix,
 actualiza el checkpoint y detente sin empezar el siguiente nivel.
@@ -356,7 +356,7 @@ sesión: es una corrida automatizada cuya salida queda en logs, y necesita prosa
 normal.
 
 Continuar con la próxima sesión, ejecutando ÚNICAMENTE el próximo nivel de
-dependencia pendiente con my-subagent-driven-development y deteniéndote sin
+dependencia pendiente con rogue-workflow:subagent-driven-development y deteniéndote sin
 empezar el siguiente.
 
 Límite de re-revisiones: cada tarea admite como máximo 3 re-revisiones después
@@ -611,7 +611,7 @@ function Get-LivenessFingerprint {
     # stdout (el .stream.jsonl) crece durante toda la sesion y su tamano es una
     # senal de progreso real. Se combina igual con el tiempo de CPU del proceso,
     # el tamano de stderr y el mtime de .controller-state.json (que
-    # my-subagent-driven-development actualiza al cerrar cada nivel). Cualquiera
+    # rogue-workflow:subagent-driven-development actualiza al cerrar cada nivel). Cualquiera
     # de las cuatro senales cambiando cuenta como progreso.
     param($Proc, [string]$LogPath, [string]$ErrLogPath, [string]$ControllerStatePath)
 

@@ -1757,7 +1757,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $id3 | Should Not BeNullOrEmpty
         $id3 | Should Not Be $id1
         (@($run.Calls[2].args) -contains '--resume') | Should Be $false
-        (Get-FakeArg $run.Calls[2] '-p') | Should Match 'my-subagent-driven-development'
+        (Get-FakeArg $run.Calls[2] '-p') | Should Match 'rogue-workflow:subagent-driven-development'
 
         $h = @($run.Status.history)
         $h[2].attempt | Should Be 2
