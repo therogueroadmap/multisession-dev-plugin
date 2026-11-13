@@ -16,6 +16,6 @@ pwsh "<resolved path to plan-session-driver.ps1>" `
 ```
 
 - `-PlanFile` is the bare file name. The driver looks for it in `docs\superpowers\plans`.
-- By default the driver creates a work branch. Add `-UseCurrentBranch` to use the active branch, which needs a clean working tree.
+- The driver needs a clean working tree, whether it creates a work branch (the default) or runs on the active one with `-UseCurrentBranch`. Do not commit the plan or its spec: list `docs/superpowers/specs/` and `docs/superpowers/plans/` in `.gitignore`, which also covers the checkpoint and the driver's own files.
 - The driver handles one repository. A plan that spans several repositories cannot run with it.
 - Keep the other parameters at their defaults unless the user asks.
