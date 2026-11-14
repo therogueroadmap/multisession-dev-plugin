@@ -1420,7 +1420,7 @@ Describe 'plan-session-driver (Ola 1b-driver: D1 y D5)' {
     }
 }
 
-Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
+Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' -Tag 'Slow' {
     Import-Module (Join-Path $moduleRoot 'scripts\modules\ProcessLauncher.psm1') -Force
     Import-Module (Join-Path $moduleRoot 'scripts\modules\DriverInterrupt.psm1') -Force
     Import-Module (Join-Path $moduleRoot 'scripts\modules\DriverStatus.psm1') -Force
@@ -1477,6 +1477,8 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             [scriptblock]$WhileRunning,
             [string]$RetryBackoff = '0',
             [switch]$AwaitHook,
+            # PLAN_DRIVER_AWAIT_DECISION_SECONDS hook: decision wait in seconds instead of AwaitDecisionMinutes.
+            [int]$AwaitSeconds = 0,
             [string]$OpenLog,
             # Ola 3 (PC-9): driver alternativo (una copia del runner con el perfil roto); sin el se usa el del Describe.
             [string]$DriverScript
@@ -1515,7 +1517,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             '-UseCurrentBranch', '-LivenessPollSeconds', '1', '-LivenessTimeoutMinutes', '1',
             '-RetryBackoffSeconds', $RetryBackoff, '-NoToast') + $DriverArgs
 
-        $names = @('PLAN_DRIVER_CLAUDE_PATH', 'PLAN_DRIVER_NO_DASHBOARD', 'FAKE_CLAUDE_SCENARIO', 'PLAN_DRIVER_AWAIT_WITHOUT_DASHBOARD', 'PLAN_DRIVER_OPEN_LOG')
+        $names = @('PLAN_DRIVER_CLAUDE_PATH', 'PLAN_DRIVER_NO_DASHBOARD', 'FAKE_CLAUDE_SCENARIO', 'PLAN_DRIVER_AWAIT_WITHOUT_DASHBOARD', 'PLAN_DRIVER_OPEN_LOG', 'PLAN_DRIVER_AWAIT_DECISION_SECONDS')
         $saved = @{}
         foreach ($n in $names) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
         $outFile = Join-Path $TestDrive "$Name-out.txt"
@@ -1527,6 +1529,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             # Ola 2c: ganchos de AWAITING sin dashboard y de A6 sin abrir ventanas; siempre se fijan (o se vacian) para no heredar el entorno.
             [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_WITHOUT_DASHBOARD', $(if ($AwaitHook) { '1' } else { $null }))
             [Environment]::SetEnvironmentVariable('PLAN_DRIVER_OPEN_LOG', $(if ($OpenLog) { $OpenLog } else { $null }))
+            [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS', $(if ($AwaitSeconds -gt 0) { [string]$AwaitSeconds } else { $null }))
 
             $launch = Start-HeadlessProcess -FilePath (Get-Process -Id $PID).Path -ArgumentList $argv -StdoutPath $outFile -StderrPath $errFile -WorkingDirectory $repo
             # 4 llamadas como maximo por It x LivenessTimeoutMinutes 1 (60 s, tope del watchdog por intento) + 60 s de margen.
@@ -1650,7 +1653,16 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
     It 'P3: el prompt de cierre en relanzamiento lleva la base estimada por merge-base y el borrador' {
         $name = 'e2e-cierre-base'
         $steps = @((Get-StepNivelOk (Get-FakePlanPath $name)), (Get-StepCierreOk))
-        $after = { param($repo) git -C $repo branch develop | Out-Null; git -C $repo checkout -q -b feat/cierre | Out-Null }
+        # develop lleva un commit propio (con fecha posterior) del que parte la rama de trabajo: su merge-base es
+        # el mas reciente y no empata con main/master (un empate hace que el driver no proponga candidata).
+        $after = {
+            param($repo)
+            git -C $repo checkout -q -b develop | Out-Null
+            $env:GIT_COMMITTER_DATE = '2099-01-01T00:00:00Z'
+            try { git -C $repo -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m 'develop' | Out-Null }
+            finally { Remove-Item Env:\GIT_COMMITTER_DATE -ErrorAction SilentlyContinue }
+            git -C $repo checkout -q -b feat/cierre | Out-Null
+        }
         $run = Invoke-FakeDriverRun -Name $name -Steps $steps -DriverArgs @('-MaxIterations', '2') -AfterInit $after
 
         $run.Status.globalStatus | Should Be 'DONE'
@@ -2013,15 +2025,15 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $id = '25555555-5555-4555-8555-555555555555'
         $s1 = Add-StepControl (Get-StepNivelOk (Get-FakePlanPath $name)) $id 'pause'
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -DriverArgs @('-AwaitDecisionMinutes', '1')
+        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1')
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'STOPPED'
         $run.Status.cause | Should Be 'pausa_vencida'
         $run.Status.reason | Should Be 'Pausa vencida: sin reanudar en 1 min'
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 55
-        $sw.Elapsed.TotalSeconds | Should BeLessThan 150
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 4
+        $sw.Elapsed.TotalSeconds | Should BeLessThan 40
     }
 
     It '2b: una orden no valida en el estado se rechaza y la corrida sigue' {
@@ -2103,14 +2115,14 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             if (-not $st.ContainsKey('afterSet') -and $cur.control -and $cur.control.last -and $cur.control.last.id -eq $idSet) {
                 $st['afterSet'] = $cur
             }
-            # 75 s > 60 s de AwaitDecisionMinutes 1: si el plazo siguiera vivo, la pausa ya habria vencido.
-            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['pausedAt'].AddSeconds(75)) {
+            # 15 s = 3 times the 5 s deadline of the hook: si el plazo siguiera vivo, la pausa ya habria vencido.
+            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['pausedAt'].AddSeconds(15)) {
                 $st['stopSent'] = $true
                 Write-FakeControl -Repo $repo -Id $idStop -Action 'stop'
             }
         }
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
+        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'STOPPED'
@@ -2133,7 +2145,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $acts[2].action | Should Be 'stop'
         foreach ($a in $acts) { $a.result | Should Be 'applied' }
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 75
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 15
     }
 
     It '2b-2: pausa durante el backoff: PAUSED, reanudar y reintento con --resume sin esperar el backoff' {
@@ -2341,15 +2353,15 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
     It '2c: la espera vence y cierra con el estado, el motivo y la causa originales' {
         $name = 'e2e-2c-expire'
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'elegir A o B')) -AwaitHook -DriverArgs @('-AwaitDecisionMinutes', '1')
+        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'elegir A o B')) -AwaitHook -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1')
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'BLOCKED'
         $run.Status.reason | Should Be 'elegir A o B (sin decisión en 1 min)'
         ($run.Status.PSObject.Properties.Name -contains 'awaiting') | Should Be $false
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 55
-        $sw.Elapsed.TotalSeconds | Should BeLessThan 150
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 4
+        $sw.Elapsed.TotalSeconds | Should BeLessThan 40
     }
 
     It '2c: detener en AWAITING cierra STOPPED con causa dashboard' {
@@ -2469,14 +2481,14 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             if (-not $st.ContainsKey('afterSet') -and $cur.control -and $cur.control.last -and $cur.control.last.id -eq $idSet) {
                 $st['afterSet'] = $cur
             }
-            # 75 s > 60 s de AwaitDecisionMinutes 1: si el plazo siguiera vivo, la espera ya habria vencido.
-            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['awaitAt'].AddSeconds(75)) {
+            # 15 s = 3 times the 5 s deadline of the hook: si el plazo siguiera vivo, la espera ya habria vencido.
+            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['awaitAt'].AddSeconds(15)) {
                 $st['stopSent'] = $true
                 Write-FakeControl -Repo $repo -Id $idStop -Action 'stop'
             }
         }
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'x')) -AwaitHook -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
+        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'x')) -AwaitHook -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'STOPPED'
@@ -2488,7 +2500,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $after.awaiting.deadline | Should BeNullOrEmpty
         $after.limits.awaitDecisionMinutes | Should Be 0
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 75
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 15
     }
 
     It '2c-3: tope de costo tras el backoff: retry session rechazado por tope y retry level con sesion nueva' {

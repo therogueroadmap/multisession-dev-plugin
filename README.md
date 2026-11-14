@@ -51,6 +51,8 @@ The dashboard listens on port 8787 by default (`-Port`).
 
 ```powershell
 Import-Module Pester -RequiredVersion 3.4.0 -Force; Invoke-Pester -Path tests
+# Quick run (about 2 min), without the end-to-end driver tests tagged Slow:
+Import-Module Pester -RequiredVersion 3.4.0 -Force; Invoke-Pester -Path tests -ExcludeTag Slow
 python -m pytest tests/python
 ```
 

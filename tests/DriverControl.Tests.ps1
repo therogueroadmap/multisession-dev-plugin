@@ -262,6 +262,21 @@ Describe 'DriverControl' {
         $d.ToString('HH:mm:ss') | Should Be '20:30:00'
     }
 
+    It 'Get-DriverControlDeadline: PLAN_DRIVER_AWAIT_DECISION_SECONDS replaces the minutes and is ignored with 0 minutes' {
+        $saved = [Environment]::GetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS')
+        try {
+            [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS', '4')
+            $since = Get-Date '2026-10-27T20:00:00'
+            (Get-DriverControlDeadline -Since $since -Minutes 30).ToString('HH:mm:ss') | Should Be '20:00:04'
+            Get-DriverControlDeadline -Since $since -Minutes 0 | Should BeNullOrEmpty
+            [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS', 'abc')
+            { Get-DriverControlDeadline -Since $since -Minutes 30 } | Should Throw 'PLAN_DRIVER_AWAIT_DECISION_SECONDS invalido'
+            [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS', $null)
+            (Get-DriverControlDeadline -Since $since -Minutes 30).ToString('HH:mm:ss') | Should Be '20:30:00'
+        }
+        finally { [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS', $saved) }
+    }
+
     It 'Wait-DriverPause publica PAUSED con el bloque y vuelve con resume' {
         $path = Join-Path $TestDrive 'wait-resume.json'
         New-DriverStatus -StatusPath $path -ProjectPath 'C:\p' -PlanFile 'p.md' | Out-Null

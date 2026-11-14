@@ -13,4 +13,5 @@
 - The level prompts leave the re-review cap to `rogue-workflow`'s fix loop.
 - The dashboard strips the plugin prefix from agent types and shows the combined review, the model of each dispatch, a "Cierre" group and the ready-to-integrate state that still needs a pull request.
 - The clean-tree check ignores the close marker and its draft.
+- The end-to-end driver tests carry the `Slow` tag, and a test hook sets the decision wait in seconds.
 - README: install, the `rogue-workflow` requirement, the `run-plan` skill and the driver's limits.

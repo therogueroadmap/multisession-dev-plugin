@@ -532,6 +532,9 @@ function New-DriverControlEntry {
 }
 
 # Plazo de la pausa: $null si Minutes es 0 (sin plazo); si no, Since + Minutes.
+# Test hook: when PLAN_DRIVER_AWAIT_DECISION_SECONDS is set (integer > 0) the deadline is
+# Since + those seconds instead of the minutes; normal use leaves it unset. With
+# Minutes 0 there is still no deadline.
 function Get-DriverControlDeadline {
     param(
         [Parameter(Mandatory = $true)]
@@ -541,6 +544,14 @@ function Get-DriverControlDeadline {
     )
 
     if ($Minutes -le 0) { return $null }
+    $hook = $env:PLAN_DRIVER_AWAIT_DECISION_SECONDS
+    if ($hook) {
+        $seconds = 0
+        if (-not [int]::TryParse($hook, [ref]$seconds) -or $seconds -le 0) {
+            throw "PLAN_DRIVER_AWAIT_DECISION_SECONDS invalido: $hook"
+        }
+        return $Since.AddSeconds($seconds)
+    }
     return $Since.AddMinutes($Minutes)
 }
 
