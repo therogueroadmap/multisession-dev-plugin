@@ -2820,8 +2820,7 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
     }
 
     It '2a: el mensaje final imprime el comando gh pr create o la variante Comando listo para copiar' {
-        $text | Should Match ([regex]::Escape('Get-ClosePrCommandLine -MarkerPath $finalReviewMarkerPath'))
-        $text | Should Match ([regex]::Escape("--title '<título>' --body-file '__PRBODY__'"))
+        $text | Should Match ([regex]::Escape("'^gh pr create '"))
         $text | Should Match ([regex]::Escape('Comando listo para copiar en ## Cierre de $markerRelativeForPrompt'))
     }
 
@@ -3361,52 +3360,5 @@ Describe 'plan-session-driver (Ola 2c: AWAITING, A1, A4, A6 y tope de costo)' {
         $iMcp = $text.IndexOf('$finalCause = $mcpPlan.cause')
         $iProfile | Should BeGreaterThan 0
         $iMcp | Should BeGreaterThan $iProfile
-    }
-}
-
-Describe 'Get-ClosePrCommandLine (comando gh pr create del marcador de cierre)' {
-    function New-CloseMarker {
-        param([string]$Name, [string[]]$Lines)
-        $path = Join-Path $TestDrive $Name
-        Set-Content -LiteralPath $path -Value $Lines -Encoding utf8
-        return $path
-    }
-    $fence = ([string][char]96) * 3
-    $good = "gh pr create --base main --head feat/x --title 'Mi titulo' --body-file 'docs/superpowers/plans/.final-review-p.pr.md'"
-
-    It 'archivo ausente devuelve null' {
-        Get-ClosePrCommandLine -MarkerPath (Join-Path $TestDrive 'no-existe.md') -ExpectedBase 'main' -ExpectedHead 'feat/x' | Should BeNullOrEmpty
-    }
-    It 'caso feliz devuelve la linea' {
-        $m = New-CloseMarker 'ok.md' @('# Final', '## Cierre', '- Rama base: main', $fence, $good, $fence)
-        Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase 'main' -ExpectedHead 'feat/x' | Should Be $good
-    }
-    It 'ignora gh pr create fuera de ## Cierre o fuera de un bloque de codigo y gana el del bloque de Cierre' {
-        $other = "gh pr create --base main --head feat/x --title 'Otro' --body-file 'x'"
-        $m = New-CloseMarker 'orden.md' @('## Resumen', $fence, $other, $fence, '## Cierre', $other.Replace('Otro', 'Suelta'), $fence, '# base estimada', $good, $fence, '## Rulings', $fence, $other, $fence)
-        Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase 'main' -ExpectedHead 'feat/x' | Should Be $good
-        $m2 = New-CloseMarker 'sin-bloque.md' @('## Cierre', $good)
-        Get-ClosePrCommandLine -MarkerPath $m2 -ExpectedBase 'main' -ExpectedHead 'feat/x' | Should BeNullOrEmpty
-    }
-    It 'base o head distintos devuelven null' {
-        $m = New-CloseMarker 'base.md' @('## Cierre', $fence, $good, $fence)
-        Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase 'develop' -ExpectedHead 'feat/x' | Should BeNullOrEmpty
-        Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase 'main' -ExpectedHead 'feat/y' | Should BeNullOrEmpty
-    }
-    It 'ExpectedBase null devuelve null' {
-        $m = New-CloseMarker 'nullbase.md' @('## Cierre', $fence, $good, $fence)
-        Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase $null -ExpectedHead 'feat/x' | Should BeNullOrEmpty
-    }
-    It 'titulo con $( o acento grave devuelve null' {
-        foreach ($bad in @('T $(calc)', ('T ' + [char]96 + 'calc' + [char]96), 'T ; rm', 'T | x', 'T & x', 'T > x', 'T < x', 'T "q"')) {
-            $line = "gh pr create --base main --head feat/x --title '$bad' --body-file 'p.md'"
-            $m = New-CloseMarker 'mal.md' @('## Cierre', $fence, $line, $fence)
-            Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase 'main' -ExpectedHead 'feat/x' | Should BeNullOrEmpty
-        }
-    }
-    It 'secuencia ANSI devuelve null' {
-        $line = "gh pr create --base main --head feat/x --title 'T" + [char]27 + "[31mrojo' --body-file 'p.md'"
-        $m = New-CloseMarker 'ansi.md' @('## Cierre', $fence, $line, $fence)
-        Get-ClosePrCommandLine -MarkerPath $m -ExpectedBase 'main' -ExpectedHead 'feat/x' | Should BeNullOrEmpty
     }
 }
