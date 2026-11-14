@@ -1263,7 +1263,7 @@ while (($iter - $iterBase) -lt $sessionBudget) {
             'La rama base es `' + $closeBase + '`: la calculó el driver. Úsala como base en la sección Base branch de `final-review.md`.'
         }
         elseif ($closeBase) {
-            'La rama base candidata es `' + $closeBase + '`: el driver la estimó por merge-base y puede equivocarse. Confírmala con la sección Base branch de `final-review.md` antes de usarla; si hay duda, pregunta o detente.'
+            'La rama base candidata es `' + $closeBase + '`: el driver la estimó por merge-base y puede equivocarse. Confírmala con la sección Base branch de `final-review.md` antes de usarla; si no puedes confirmarla, no la formules como pregunta: termina con PLAN_STATUS: BLOCKED: rama base sin confirmar (candidata `' + $closeBase + '`).'
         }
         else {
             'El driver no pudo determinar la rama base: determínala con la sección Base branch de `final-review.md`.'

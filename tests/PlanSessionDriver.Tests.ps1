@@ -2849,6 +2849,8 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
     It '2b: la base en imperativo solo se usa si la creo este run (closeBase igual a createdFromBranch)' {
         $text | Should Match ([regex]::Escape('if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch)'))
         $text | Should Match ([regex]::Escape('La rama base candidata es'))
+        $text | Should Match ([regex]::Escape('no la formules como pregunta: termina con PLAN_STATUS: BLOCKED: rama base sin confirmar'))
+        $text | Should Not Match ([regex]::Escape('pregunta o detente'))
     }
 
     function Test-InNodeRange($Node, $Container) {
