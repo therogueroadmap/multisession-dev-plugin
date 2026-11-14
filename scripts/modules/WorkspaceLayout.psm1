@@ -88,4 +88,40 @@ function Assert-PlanInsideRepo {
     throw "$cause $hint"
 }
 
-Export-ModuleMember -Function Resolve-RepoRoot, Get-EffectivePlansDir, Copy-PlanIfMissing, Get-PathRelativeTo, Test-PathWithin, Assert-PlanInsideRepo
+# Linea `gh pr create ...` que la sesion de cierre dejo en `## Cierre` del marcador, o $null.
+# Solo vale la primera dentro de un bloque de codigo de esa seccion, sin caracteres que un
+# shell interprete (el humano la copia tal cual) y con --base/--head iguales a los esperados.
+function Get-ClosePrCommandLine {
+    param(
+        [Parameter(Mandatory = $true)][string]$MarkerPath,
+        [AllowNull()][string]$ExpectedBase,
+        [Parameter(Mandatory = $true)][string]$ExpectedHead
+    )
+    if ([string]::IsNullOrWhiteSpace($ExpectedBase)) { return $null }
+    $lines = $null
+    try { $lines = @(Get-Content -LiteralPath $MarkerPath -ErrorAction Stop) } catch { return $null }
+    $inCierre = $false
+    $inFence = $false
+    $candidate = $null
+    foreach ($line in $lines) {
+        if ($line -match '^\s*```') {
+            $inFence = -not $inFence
+            continue
+        }
+        if (-not $inFence -and $line -match '^##\s') {
+            $inCierre = ($line -match '^##\s+Cierre\s*$')
+            continue
+        }
+        if ($inCierre -and $inFence -and $line -match '^gh pr create ') { $candidate = $line.Trim(); break }
+    }
+    if (-not $candidate) { return $null }
+    if ($candidate -match '[\$`\\";|&<>\p{Cc}]') { return $null }
+    $b = [regex]::Match($candidate, '(?:^|\s)--base\s+(\S+)')
+    $h = [regex]::Match($candidate, '(?:^|\s)--head\s+(\S+)')
+    if (-not $b.Success -or -not $h.Success) { return $null }
+    if ($b.Groups[1].Value -cne $ExpectedBase) { return $null }
+    if ($h.Groups[1].Value -cne $ExpectedHead) { return $null }
+    return $candidate
+}
+
+Export-ModuleMember -Function Get-ClosePrCommandLine, Resolve-RepoRoot, Get-EffectivePlansDir, Copy-PlanIfMissing, Get-PathRelativeTo, Test-PathWithin, Assert-PlanInsideRepo
