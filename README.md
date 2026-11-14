@@ -8,13 +8,13 @@ It expects plans with a Dependency Map (a `Task | Depends On | Level` table), li
 
 ## Status
 
-Version 0.1.0. Under construction: it is not in the
-[catalog](https://github.com/therogueroadmap/marketplace) yet.
+Version 0.1.0. In progress: it is in the [catalog](https://github.com/therogueroadmap/marketplace),
+and I am still testing it against real plans.
 I publish it to work on it in the open.
 
 ## Install
 
-Once it is listed in the [The Rogue Roadmap catalog](https://github.com/therogueroadmap/marketplace):
+From the [The Rogue Roadmap catalog](https://github.com/therogueroadmap/marketplace):
 
 ```text
 /plugin marketplace add therogueroadmap/marketplace
