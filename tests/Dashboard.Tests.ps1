@@ -1863,7 +1863,30 @@ integrationView(
         $r.cleanText | Should Be 'limpio'
         $r.countsText | Should Be 'CRITICAL: 0 · IMPORTANT: 0 · MINOR: 2'
         @($r.steps).Count | Should Be 1
-        $r.steps[0] | Should Be '1. Ejecutar finishing-a-development-branch (merge, push o PR) desde una sesión humana'
+        $r.steps[0] | Should Be '1. Integrar la rama (merge local o PR) desde una sesión humana'
+    }
+
+    It 'Cierre: integrationView muestra Lista para integrar, falta PR con el pendiente humano de la revision' -Skip:$noNode {
+        $r = Invoke-DashboardPure @'
+(function () {
+  const st = { globalStatus: 'DONE', git: { branch: 'feat/x', baseBranch: 'main', ahead: 3, clean: true, error: null } };
+  const counts = { CRITICAL: 0, IMPORTANT: 0, MINOR: 0 };
+  return {
+    con: integrationView(st, { exists: true, counts, pendingHuman: 'crear el PR de feat/x contra main' }),
+    sin: integrationView(st, { exists: true, counts, pendingHuman: null }),
+    vacio: integrationView(st, { exists: true, counts, pendingHuman: '' }),
+    sucio: integrationView({ globalStatus: 'DONE', git: { branch: 'b', baseBranch: 'main', ahead: 1, clean: false, error: null } },
+      { exists: true, counts, pendingHuman: 'crear el PR de b contra main' })
+  };
+})()
+'@
+        $r.con.ready | Should Be $true
+        $r.con.badgeText | Should Be 'Lista para integrar, falta PR'
+        $r.con.pendingText | Should Be 'crear el PR de feat/x contra main'
+        $r.sin.badgeText | Should Be 'Lista para integrar'
+        $r.sin.pendingText | Should BeNullOrEmpty
+        $r.vacio.badgeText | Should Be 'Lista para integrar'
+        $r.sucio.badgeText | Should Be 'Requiere atención'
     }
 
     It 'D3: integrationView muestra Resolver los hallazgos solo con CRITICAL o IMPORTANT' -Skip:$noNode {
@@ -1881,14 +1904,14 @@ integrationView(
         $critical = @($r.critical)
         $critical.Count | Should Be 2
         $critical[0] | Should Be '1. Resolver los hallazgos abiertos'
-        $critical[1] | Should Match '^2\. Ejecutar finishing-a-development-branch'
+        $critical[1] | Should Match '^2\. Integrar la rama'
         $important = @($r.important)
         $important.Count | Should Be 2
         $important[0] | Should Be '1. Resolver los hallazgos abiertos'
-        $important[1] | Should Match '^2\. Ejecutar finishing-a-development-branch'
+        $important[1] | Should Match '^2\. Integrar la rama'
         $minor = @($r.minor)
         $minor.Count | Should Be 1
-        $minor[0] | Should Match '^1\. Ejecutar finishing-a-development-branch'
+        $minor[0] | Should Match '^1\. Integrar la rama'
     }
 
     It 'D3: integrationView da Requiere atencion con CRITICAL, con IMPORTANT o con el arbol sucio' -Skip:$noNode {
@@ -1967,8 +1990,8 @@ integrationView(
 })()
 '@
         $uno = '1. Resolver los hallazgos abiertos'
-        $dosFin = '2. Ejecutar finishing-a-development-branch (merge, push o PR) desde una sesión humana'
-        $unoFin = '1. Ejecutar finishing-a-development-branch (merge, push o PR) desde una sesión humana'
+        $dosFin = '2. Integrar la rama (merge local o PR) desde una sesión humana'
+        $unoFin = '1. Integrar la rama (merge local o PR) desde una sesión humana'
         @($r.ceros).Count | Should Be 1
         $r.ceros[0] | Should Be $unoFin
         foreach ($k in 'critical', 'important') {

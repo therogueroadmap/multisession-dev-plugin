@@ -1295,11 +1295,15 @@
       const show = v => (v === null ? '—' : String(v));
       const steps = [];
       if ([crit, imp].some(v => v !== null && v > 0)) steps.push('1. Resolver los hallazgos abiertos');
-      steps.push(`${steps.length + 1}. Ejecutar finishing-a-development-branch (merge, push o PR) desde una sesión humana`);
+      steps.push(`${steps.length + 1}. Integrar la rama (merge local o PR) desde una sesión humana`);
+      // Bullet "Pendiente humano" de la seccion Cierre de la revision final; solo texto, sin comando ni boton.
+      const pendingText = review && review.exists === true && typeof review.pendingHuman === 'string' && review.pendingHuman
+        ? review.pendingHuman : null;
       return {
         ready,
         badgeCls: ready ? 'ig-ready' : 'ig-attention',
-        badgeText: ready ? 'Lista para integrar' : 'Requiere atención',
+        badgeText: ready ? (pendingText ? 'Lista para integrar, falta PR' : 'Lista para integrar') : 'Requiere atención',
+        pendingText,
         branchText: texts.branchText,
         aheadText: texts.aheadText,
         cleanText: texts.cleanText,
@@ -2031,7 +2035,7 @@
       badge.className = 'badge ' + v.badgeCls;
       badge.textContent = v.badgeText;
       body.appendChild(badge);
-      [v.branchText, v.aheadText + ' · ' + v.cleanText, v.countsText].forEach(text => {
+      [v.branchText, v.aheadText + ' · ' + v.cleanText, v.countsText].concat(v.pendingText ? ['Pendiente: ' + v.pendingText] : []).forEach(text => {
         const line = document.createElement('div');
         line.className = 'sub';
         line.textContent = text;

@@ -502,3 +502,34 @@ def test_modelo_visto_antes_del_task_started_y_sin_datos():
     assert _barra(view, "c1")["model"] == "haiku"
     assert _barra(view, "d1")["model"] is None
     assert _barra(view, "d1")["modelOverride"] is False
+
+
+def test_grupo_cierre_despues_de_las_tareas():
+    st = sa.new_state()
+    sa.feed(st, _started("i1", "T2 implementar", "rogue-workflow:implementer")
+            + _started("o1", "buscar algo", "Explore")
+            + _started("r1", "FINAL revisión", "rogue-workflow:reviewer")
+            + _updated("r1", status="completed", end_time=1760558400000)
+            + _started("f1", "FINAL ola de fixes", "rogue-workflow:fix-agent")
+            + _updated("f1", status="completed", end_time=1760558460000)
+            + _started("r2", "FINAL re-revisión", "rogue-workflow:reviewer")
+            + _updated("r2", status="completed", end_time=1760558520000))
+    view = sa.to_view(st, NOW)
+    assert [t["code"] for t in view["tasks"]] == ["T2", "Cierre", "otras"]
+    cierre = _tarea(view, "Cierre")
+    assert [s["role"] for s in cierre["stages"]] == ["review", "fix", "review"]
+    assert [s["state"] for s in cierre["stages"]] == ["ko", "ok", "ok"]
+    assert cierre["done"] is True
+
+
+def test_cierre_sin_ola_termina_con_la_revision():
+    st = sa.new_state()
+    sa.feed(st, _started("r1", "FINAL revisión", "rogue-workflow:reviewer")
+            + _updated("r1", status="completed", end_time=1760558400000))
+    assert _tarea(sa.to_view(st, NOW), "Cierre")["done"] is True
+
+
+def test_final_sin_mayusculas_no_es_cierre():
+    st = sa.new_state()
+    sa.feed(st, _started("r1", "Final whole-branch review", "rogue-workflow:reviewer"))
+    assert sa.to_view(st, NOW)["bars"][0]["task"] == "otras"

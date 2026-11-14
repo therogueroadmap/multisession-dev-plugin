@@ -26,6 +26,8 @@ TASK_SUBTYPES = frozenset(
 EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 TASK_RE = re.compile(r"T(\d+)", re.I)
 OTHER_TASK = "otras"
+CLOSE_TASK = "Cierre"
+CLOSE_PREFIX_RE = re.compile(r"\s*FINAL\b")  # prefijo que pide el prompt de cierre del driver
 CHUNK = 1 << 20  # bloque de lectura de read_incremental (1 MiB)
 
 
@@ -69,6 +71,8 @@ def new_state() -> State:
 # ---------------------------------------------------------------- utilidades
 
 def _task_code(description: str | None) -> str:
+    if CLOSE_PREFIX_RE.match(description or ""):
+        return CLOSE_TASK
     m = TASK_RE.search(description or "")
     return f"T{int(m.group(1))}" if m else OTHER_TASK
 
@@ -411,6 +415,8 @@ def read_incremental(state: State, path: Path) -> None:
 
 def _task_sort_key(code: str) -> tuple[int, int]:
     if code == OTHER_TASK:
+        return (2, 0)
+    if code == CLOSE_TASK:
         return (1, 0)
     return (0, int(code[1:]))
 
