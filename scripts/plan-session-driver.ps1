@@ -1259,8 +1259,11 @@ while (($iter - $iterBase) -lt $sessionBudget) {
         $closeBase = $null
         try { $closeBase = Resolve-CloseBaseBranch -RepoRoot $repoRoot -KnownBase $createdFromBranch }
         catch { Write-Warning "No se pudo calcular la rama base del cierre: $($_.Exception.Message)" }
-        $closeBaseText = if ($closeBase) {
+        $closeBaseText = if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch) {
             'La rama base es `' + $closeBase + '`: la calculó el driver. Úsala como base en la sección Base branch de `final-review.md`.'
+        }
+        elseif ($closeBase) {
+            'La rama base candidata es `' + $closeBase + '`: el driver la estimó por merge-base y puede equivocarse. Confírmala con la sección Base branch de `final-review.md` antes de usarla; si hay duda, pregunta o detente.'
         }
         else {
             'El driver no pudo determinar la rama base: determínala con la sección Base branch de `final-review.md`.'

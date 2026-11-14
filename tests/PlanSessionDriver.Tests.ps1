@@ -1647,7 +1647,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine -like '*fake-claude.ps1*' -and $_.ProcessId -ne $PID })
     }
 
-    It 'P3: el prompt de cierre lleva la rama base calculada por el driver y el borrador' {
+    It 'P3: el prompt de cierre en relanzamiento lleva la base estimada por merge-base y el borrador' {
         $name = 'e2e-cierre-base'
         $steps = @((Get-StepNivelOk (Get-FakePlanPath $name)), (Get-StepCierreOk))
         $after = { param($repo) git -C $repo branch develop | Out-Null; git -C $repo checkout -q -b feat/cierre | Out-Null }
@@ -1655,7 +1655,9 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
 
         $run.Status.globalStatus | Should Be 'DONE'
         $p = Get-FakeArg $run.Calls[1] '-p'
-        $p | Should Match ([regex]::Escape('La rama base es `develop`'))
+        $p | Should Match ([regex]::Escape('La rama base candidata es `develop`: el driver la estimó por merge-base'))
+        $p | Should Match ([regex]::Escape('Confírmala con la sección Base branch'))
+        $p.Contains('la calculó el driver') | Should Be $false
         $p | Should Match ([regex]::Escape('.final-review-2026-10-27-falso.draft.md'))
         $p.Contains('__BASE__') | Should Be $false
         $p.Contains('__DRAFT__') | Should Be $false
@@ -2842,6 +2844,11 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $text | Should Match ([regex]::Escape('$baseBranch = Initialize-WorkBranch -RepoRoot $repoRoot -Branch $workBranch'))
         $text | Should Not Match ([regex]::Escape('Initialize-WorkBranch -RepoRoot $repoRoot -Branch $workBranch | Out-Null'))
         $text | Should Match ([regex]::Escape('$baseBranch = Resolve-WorkspaceBaseBranch -RepoRoot $repoRoot'))
+    }
+
+    It '2b: la base en imperativo solo se usa si la creo este run (closeBase igual a createdFromBranch)' {
+        $text | Should Match ([regex]::Escape('if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch)'))
+        $text | Should Match ([regex]::Escape('La rama base candidata es'))
     }
 
     function Test-InNodeRange($Node, $Container) {

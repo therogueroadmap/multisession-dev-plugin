@@ -65,6 +65,10 @@ Describe 'GitWorkspace' {
             $repo = New-TempRepo -Branches @('feat/x', 'develop')
             Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should Be 'develop'
         }
+        It 'no devuelve la rama conocida si no existe' {
+            $repo = New-TempRepo -Branches @('feat/x', 'develop')
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'fantasma' | Should Be 'develop'
+        }
         It 'sin rama conocida elige la candidata con el merge-base mas reciente' {
             $repo = New-TempRepo -Branches @('main', 'develop')
             $env:GIT_COMMITTER_DATE = '2030-01-01T00:00:00Z'

@@ -75,7 +75,7 @@ function Resolve-CloseBaseBranch {
         [AllowNull()][AllowEmptyString()][string]$KnownBase
     )
     $current = Get-CurrentBranch -RepoRoot $RepoRoot
-    if (-not [string]::IsNullOrWhiteSpace($KnownBase) -and $KnownBase -ne $current) { return $KnownBase }
+    if (-not [string]::IsNullOrWhiteSpace($KnownBase) -and $KnownBase -ne $current -and (Test-BranchExists -RepoRoot $RepoRoot -Branch $KnownBase)) { return $KnownBase }
     $best = $null
     $bestTime = [long]-1
     foreach ($b in @('develop', 'main', 'master')) {
