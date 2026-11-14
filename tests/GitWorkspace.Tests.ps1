@@ -60,6 +60,34 @@ Describe 'GitWorkspace' {
         }
     }
 
+    Context 'Resolve-CloseBaseBranch' {
+        It 'devuelve la rama conocida si no es la actual' {
+            $repo = New-TempRepo -Branches @('feat/x', 'develop')
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should Be 'develop'
+        }
+        It 'sin rama conocida elige la candidata con el merge-base mas reciente' {
+            $repo = New-TempRepo -Branches @('main', 'develop')
+            $env:GIT_COMMITTER_DATE = '2030-01-01T00:00:00Z'
+            try {
+                Set-Content -LiteralPath (Join-Path $repo 'm.txt') -Value 'm' -Encoding utf8
+                git -C $repo add m.txt | Out-Null
+                git -C $repo commit -q -m 'main avanza' | Out-Null
+            }
+            finally { Remove-Item Env:GIT_COMMITTER_DATE -ErrorAction SilentlyContinue }
+            git -C $repo checkout -q -b feat/x | Out-Null
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should Be 'main'
+        }
+        It 'con empate gana el orden develop, main, master' {
+            $repo = New-TempRepo -Branches @('main', 'develop')
+            git -C $repo checkout -q -b feat/x | Out-Null
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should Be 'develop'
+        }
+        It 'descarta la rama actual como conocida y como candidata' {
+            $repo = New-TempRepo -Branches @('develop')
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should BeNullOrEmpty
+        }
+    }
+
     Context 'Get-PlanBranchName' {
         It 'propone el nombre del feature quitando el prefijo de fecha YYYY-MM-DD-' {
             Get-PlanBranchName -PlanFilePath 'C:\x\docs\2026-09-11-bloque-b-web.md' |

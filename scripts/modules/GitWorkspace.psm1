@@ -65,6 +65,29 @@ function Get-CurrentBranch {
     return (git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null)
 }
 
+# Pendiente 10: rama base para la sesion de cierre. La que el driver uso al crear la
+# rama de trabajo en esta corrida; si no, la candidata (develop, main, master, sin la
+# rama actual) cuyo merge-base con HEAD es el commit mas reciente, con empate por ese
+# orden; $null si no hay ninguna.
+function Resolve-CloseBaseBranch {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [AllowNull()][AllowEmptyString()][string]$KnownBase
+    )
+    $current = Get-CurrentBranch -RepoRoot $RepoRoot
+    if (-not [string]::IsNullOrWhiteSpace($KnownBase) -and $KnownBase -ne $current) { return $KnownBase }
+    $best = $null
+    $bestTime = [long]-1
+    foreach ($b in @('develop', 'main', 'master')) {
+        if ($b -eq $current -or -not (Test-BranchExists -RepoRoot $RepoRoot -Branch $b)) { continue }
+        $mb = git -C $RepoRoot merge-base $b HEAD 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($mb)) { continue }
+        $t = [long](git -C $RepoRoot show -s --format=%ct $mb 2>$null)
+        if ($t -gt $bestTime) { $best = $b; $bestTime = $t }
+    }
+    return $best
+}
+
 function Initialize-WorkBranch {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -174,4 +197,4 @@ function Resolve-BootstrapBranchAction {
     return 'resume'
 }
 
-Export-ModuleMember -Function Test-GitRepo, Resolve-WorkspaceBaseBranch, Get-PlanBranchName, Test-PorcelainClean, Test-WorkingTreeClean, Test-BranchExists, Get-CurrentBranch, Initialize-WorkBranch, Use-CurrentWorkBranch, Get-ChildGitRepos, Assert-ProjectIsRepo, Resume-WorkBranch, Resolve-BootstrapBranchAction
+Export-ModuleMember -Function Test-GitRepo, Resolve-WorkspaceBaseBranch, Get-PlanBranchName, Test-PorcelainClean, Test-WorkingTreeClean, Test-BranchExists, Get-CurrentBranch, Resolve-CloseBaseBranch, Initialize-WorkBranch, Use-CurrentWorkBranch, Get-ChildGitRepos, Assert-ProjectIsRepo, Resume-WorkBranch, Resolve-BootstrapBranchAction

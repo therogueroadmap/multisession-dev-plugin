@@ -1647,6 +1647,20 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine -like '*fake-claude.ps1*' -and $_.ProcessId -ne $PID })
     }
 
+    It 'P3: el prompt de cierre lleva la rama base calculada por el driver y el borrador' {
+        $name = 'e2e-cierre-base'
+        $steps = @((Get-StepNivelOk (Get-FakePlanPath $name)), (Get-StepCierreOk))
+        $after = { param($repo) git -C $repo branch develop | Out-Null; git -C $repo checkout -q -b feat/cierre | Out-Null }
+        $run = Invoke-FakeDriverRun -Name $name -Steps $steps -DriverArgs @('-MaxIterations', '2') -AfterInit $after
+
+        $run.Status.globalStatus | Should Be 'DONE'
+        $p = Get-FakeArg $run.Calls[1] '-p'
+        $p | Should Match ([regex]::Escape('La rama base es `develop`'))
+        $p | Should Match ([regex]::Escape('.final-review-2026-10-27-falso.draft.md'))
+        $p.Contains('__BASE__') | Should Be $false
+        $p.Contains('__DRAFT__') | Should Be $false
+    }
+
     It 'D1: transitorio, reintento con --resume y DONE, sin consumir el presupuesto' {
         $name = 'e2e-retry-done'
         $steps = @((Get-StepTransitorio), (Get-StepNivelOk (Get-FakePlanPath $name)), (Get-StepCierreOk))
@@ -2765,12 +2779,13 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $closeStart | Should BeGreaterThan -1
         $endMark = $text.IndexOf('Al terminar, agrega como última línea de tu respuesta EXACTAMENTE una de estas', $closeStart)
         $endMark | Should BeGreaterThan -1
-        foreach ($lit in @('**Veredicto:** <texto breve del veredicto>', '| # | Severidad | Ubicación | Descripción | Fix sugerido |', 'La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR', 'sección `## Rulings` con todas las líneas', 'rogue-workflow:reviewer')) {
+        foreach ($lit in @('**Veredicto:** <texto breve del veredicto>', '| # | Severidad | Ubicación | Descripción | Fix sugerido |', 'La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR', 'sección `## Rulings` con todas las líneas', 'rogue-workflow:reviewer', '__BASE__', '__DRAFT__', 'FINAL', 'final-review.md')) {
             $text | Should Match ([regex]::Escape($lit))
             $idx = $text.IndexOf($lit, $closeStart)
             $idx | Should BeGreaterThan $closeStart
             $idx | Should BeLessThan $endMark
         }
+        $text.IndexOf('NO ejecutes la ola de fixes', $closeStart) | Should Be -1
     }
 
     It '2a: limits y params se publican una vez, tras el presupuesto y antes del bucle, con aviso si fallan' {

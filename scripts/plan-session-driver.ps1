@@ -145,14 +145,30 @@ normal.
 
 El plan de implementación __PLAN__ ya tiene todos sus niveles implementados.
 
-Corre ÚNICAMENTE la revisión final del código completo: despacha
-`rogue-workflow:reviewer` con `model: opus` sobre toda la implementación, con la
-plantilla `final-reviewer-prompt.md` de la skill
-rogue-workflow:subagent-driven-development, y pásale los hallazgos aparcados
-(parked) del ledger `progress.md`, que está en la carpeta que imprime
-`scripts/sdd-workspace __PLAN__` de esa skill. Escribe sus findings en el
-archivo __MARKER__. NO ejecutes la ola de fixes ni el cierre, ni hagas merge,
-push ni PR: esa fase es interactiva y la hará un humano después.
+Termina el plan: invoca la skill rogue-workflow:subagent-driven-development para
+__PLAN__. Con todos los niveles cerrados en el checkpoint, la skill te lleva a
+`references/final-review.md`. Síguelo desde la revisión final
+(`rogue-workflow:reviewer` con `model: opus`) hasta el paso 1 de Close (la suite
+completa), con estas reglas propias del driver:
+
+- __BASE__
+- Empieza la `description` de cada despacho con FINAL, por ejemplo «FINAL
+  revisión», «FINAL ola de fixes» o «FINAL re-revisión».
+- No muestres ni elijas las opciones de Close (merge, push, PR o conservar la
+  rama): la integración la hace un humano después. Nunca hagas merge, push ni PR.
+- Los hallazgos residuales no te detienen: quedan en la tabla con su ruling y el
+  humano decide al integrar.
+- Lleva el registro del cierre en el borrador __DRAFT__. Escríbelo en cuanto
+  termine la revisión final y actualízalo tras cada paso: ola de fixes,
+  re-revisión, rulings (cópialos del ledger antes de borrar el workspace) y
+  suite. No lo agregues a ningún commit.
+- Si __DRAFT__ ya existe, una sesión anterior se cortó a medias: no repitas la
+  revisión final. Retoma desde lo que registra su sección `## Cierre` y conserva
+  sus `## Rulings`. Si el workspace ya no existe, no crees un ledger nuevo ni
+  repitas el preflight: sigue `final-review.md` desde el paso pendiente.
+- Cuando la suite termine en verde, renombra __DRAFT__ a __MARKER__ como última
+  acción. El driver da el plan por cerrado en cuanto existe __MARKER__, así que
+  no lo crees antes ni lo escribas de otra forma.
 
 Esta sesión corre en modo headless, sin supervisión humana:
 [AUTOPILOT: full], incluida autorización previa para "git commit".
@@ -162,10 +178,10 @@ decisión de diseño abierta, a una ambigüedad del plan o a cualquier punto que
 necesite una respuesta humana, NO la formules como pregunta en prosa: termina
 con la marca PLAN_STATUS: BLOCKED: <la decisión o pregunta, en una sola línea>.
 
-Espera a que el reviewer termine (despáchalo en primer plano) y a que
-__MARKER__ esté escrito antes de emitir PLAN_STATUS: COMPLETE.
+Despacha los subagentes en primer plano y espera cada resultado.
 
-El archivo __MARKER__ debe seguir este formato, porque el dashboard lo lee:
+El borrador, y por tanto el archivo __MARKER__ que sale de él, debe seguir este
+formato, porque el dashboard lo lee:
 
 **Veredicto:** <texto breve del veredicto>
 
@@ -175,21 +191,38 @@ El archivo __MARKER__ debe seguir este formato, porque el dashboard lo lee:
 
 La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR, en mayúsculas
 y sin otro texto. Una fila por finding. Si no hay findings, deja la tabla solo
-con el encabezado. Puedes agregar secciones de detalle debajo de la tabla.
+con el encabezado. La tabla lista los findings abiertos: tras la revisión final,
+todos; tras la re-revisión, solo los residuales. El dashboard cuenta sus filas
+para decidir si la rama está lista, así que no pongas otra tabla con columna
+Severidad en el archivo.
 
-Debajo de la tabla agrega siempre una sección `## Rulings` con todas las líneas
-`Ruling:` del ledger, en orden y textuales: son decisiones que el controlador
-tomó sin un humano y el humano debe verlas. Si el ledger no existe o no tiene
-ninguna, escribe `None.` en esa sección.
+Debajo de la tabla, en este orden:
+
+## Corregidos en la ola de fixes
+Una línea por finding corregido: `- <SEVERIDAD> <archivo:línea> — <descripción>`.
+Escribe `None.` si no hubo ola.
+
+## Cierre
+- Rama base: <rama>
+- Ola de fixes: <sha7 del commit> | sin ola | pendiente
+- Re-revisión: limpia | <N> residuales | pendiente
+- Suite: <comando> -> verde | roja: <motivo> | pendiente
+- Workspace: borrado | pendiente
+
+Después agrega siempre una sección `## Rulings` con todas las líneas `Ruling:`
+del ledger, en orden y textuales, más las que tomes en esta sesión: son
+decisiones que el controlador tomó sin un humano y el humano debe verlas. Si no
+hay ninguna, escribe `None.` en esa sección.
 
 Al terminar, agrega como última línea de tu respuesta EXACTAMENTE una de estas
 marcas (nada más en esa línea):
 
 PLAN_STATUS: COMPLETE
-  (la revisión final terminó y los findings quedaron escritos en __MARKER__)
+  (cierre terminado: la suite quedó en verde y __DRAFT__ ya es __MARKER__)
 
 PLAN_STATUS: BLOCKED: <motivo breve>
-  (la revisión encontró algo que impide cerrar)
+  (la suite quedó roja o llegaste a una de las cuatro paradas de la skill; deja
+  el estado en la sección ## Cierre de __DRAFT__ y no crees __MARKER__)
 '@
 
 $repoRoot = Resolve-RepoRoot -ProjectPath $ProjectPath -WorkDir $WorkDir
@@ -305,6 +338,9 @@ $markerRelativeForPrompt = if ($finalReviewMarkerPath) {
     'docs\superpowers\plans\' + [System.IO.Path]::GetFileName($finalReviewMarkerPath)
 }
 else { $null }
+# Borrador de trabajo de la sesion de cierre (pendiente 3): no es el marcador, que el
+# driver busca por su ruta exacta; la sesion lo renombra a marcador al terminar.
+$draftRelativeForPrompt = if ($markerRelativeForPrompt) { $markerRelativeForPrompt -replace '\.md$', '.draft.md' } else { $null }
 
 # Prompt de nivel: mismo para bootstrap y continue. Cada sesión es de contexto
 # limpio, así que nombra el plan explícitamente cuando se conoce.
@@ -386,7 +422,7 @@ PLAN_STATUS: BLOCKED: <motivo breve>
 
 $CLOSE_PROMPT = $null
 if ($PlanFile) {
-    $CLOSE_PROMPT = $CLOSE_PROMPT_TEMPLATE.Replace('__PLAN__', $planRelativeForPrompt).Replace('__MARKER__', $markerRelativeForPrompt)
+    $CLOSE_PROMPT = $CLOSE_PROMPT_TEMPLATE.Replace('__PLAN__', $planRelativeForPrompt).Replace('__DRAFT__', $draftRelativeForPrompt).Replace('__MARKER__', $markerRelativeForPrompt)
 }
 
 # D7: archivado del status previo y herencia del historial. $iterBase es el
@@ -542,6 +578,8 @@ try { Set-DriverStatusBlock -StatusPath $statusPath -Name control -Value ([order
 catch { Write-Warning "No se pudo publicar el bloque control: $($_.Exception.Message)" }
 
 $baseBranch = $null
+# Pendiente 10: rama de la que el driver creo la rama de trabajo en esta corrida; $null si no la creo.
+$createdFromBranch = $null
 $iter = $iterBase
 $finalStatus = $null
 $finalReason = $null
@@ -1163,6 +1201,7 @@ while (($iter - $iterBase) -lt $sessionBudget) {
             }
             else {
                 $baseBranch = Initialize-WorkBranch -RepoRoot $repoRoot -Branch $workBranch
+                $createdFromBranch = $baseBranch
                 Set-DriverStatusBranch -StatusPath $statusPath -WorkBranch $workBranch | Out-Null
                 Write-Host "Rama de trabajo creada: $workBranch"
             }
@@ -1194,7 +1233,7 @@ while (($iter - $iterBase) -lt $sessionBudget) {
 
     if ($decision.Mode -eq 'done') {
         $finalStatus = 'DONE'
-        $finalReason = 'plan completo; niveles y revisión final realizados. Pendiente el handoff humano de integración.'
+        $finalReason = 'plan completo; niveles y cierre realizados (revisión final, ola de fixes, re-revisión, rulings y suite). Pendiente la integración (merge o PR).'
         break
     }
 
@@ -1215,7 +1254,19 @@ while (($iter - $iterBase) -lt $sessionBudget) {
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 
     Write-Host "== Sesion $iter (modo: $($decision.Mode)) =="
-    $promptText = if ($decision.Mode -eq 'close') { $CLOSE_PROMPT } else { $LEVEL_PROMPT }
+    $closeBaseText = $null
+    if ($decision.Mode -eq 'close') {
+        $closeBase = $null
+        try { $closeBase = Resolve-CloseBaseBranch -RepoRoot $repoRoot -KnownBase $createdFromBranch }
+        catch { Write-Warning "No se pudo calcular la rama base del cierre: $($_.Exception.Message)" }
+        $closeBaseText = if ($closeBase) {
+            'La rama base es `' + $closeBase + '`: la calculó el driver. Úsala como base en la sección Base branch de `final-review.md`.'
+        }
+        else {
+            'El driver no pudo determinar la rama base: determínala con la sección Base branch de `final-review.md`.'
+        }
+    }
+    $promptText = if ($decision.Mode -eq 'close') { $CLOSE_PROMPT.Replace('__BASE__', $closeBaseText) } else { $LEVEL_PROMPT }
     # Ola 2c (A1): la decision del usuario sobre un bloqueo viaja como seccion final del prompt de la sesion nueva.
     if ($pendingDecisionText) { $promptText = Add-DriverDecisionSection -Prompt $promptText -Text $pendingDecisionText; $pendingDecisionText = $null }
     # Fase 2 (M3/M9): checkpoint antes de la sesion, para medir si avanzo.
@@ -1553,14 +1604,13 @@ if ($finalReason) {
 
 if ($finalStatus -eq 'DONE') {
     Write-Host ''
-    Write-Host '--- Handoff a sesion interactiva humana ---'
-    Write-Host 'El plan termino todos sus niveles y la revisión final del código completo.'
+    Write-Host '--- Rama lista para integrar ---'
+    Write-Host 'El plan terminó sus niveles y el cierre: revisión final, ola de fixes, re-revisión, rulings y suite completa.'
     if ($markerRelativeForPrompt) {
-        Write-Host "Revisa los findings en: $markerRelativeForPrompt"
+        Write-Host "Resultado del cierre, residuales y rulings: $markerRelativeForPrompt"
     }
-    Write-Host 'Para la integración de la rama (merge/push/PR), lanza una sesión interactiva:'
-    Write-Host "  cd `"$repoRoot`" ; claude"
-    Write-Host '  y pide: "Ejecuta finishing-a-development-branch para este plan."'
+    Write-Host 'Queda la integración (merge local o PR), a cargo de una persona, en:'
+    Write-Host "  $repoRoot"
 }
 
 if ($dashboard) {
