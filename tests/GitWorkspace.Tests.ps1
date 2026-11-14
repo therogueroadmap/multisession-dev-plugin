@@ -157,6 +157,19 @@ Describe 'GitWorkspace' {
             Test-PorcelainClean -Porcelain $porcelain | Should Be $true
             Test-PorcelainClean -Porcelain ($porcelain + " M src/a.ps1`0") | Should Be $false
         }
+        It 'Test-PorcelainClean ignora el marcador de cierre (.final-review-*.md)' {
+            $porcelain = "?? docs/superpowers/plans/.final-review-2026-11-13-plan.md`0"
+            Test-PorcelainClean -Porcelain $porcelain | Should Be $true
+            Test-PorcelainClean -Porcelain " M docs/superpowers/plans/.final-review-x.md`0" | Should Be $true
+            Test-PorcelainClean -Porcelain ($porcelain + " M src/a.ps1`0") | Should Be $false
+        }
+        It 'Test-PorcelainClean ignora el borrador del cierre (.final-review-*.draft.md)' {
+            Test-PorcelainClean -Porcelain "?? docs/superpowers/plans/.final-review-2026-11-13-plan.draft.md`0" | Should Be $true
+        }
+        It 'Test-PorcelainClean cuenta como sucio un archivo que no es marcador de cierre' {
+            Test-PorcelainClean -Porcelain "?? docs/final-review-x.md`0" | Should Be $false
+            Test-PorcelainClean -Porcelain "?? docs/superpowers/plans/.final-review-x.txt`0" | Should Be $false
+        }
     }
 
     Context 'Initialize-WorkBranch (politica estricta de bootstrap)' {

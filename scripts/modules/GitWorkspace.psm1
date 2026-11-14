@@ -34,11 +34,12 @@ function Test-PorcelainClean {
     # reemplazo atomico), .driver-logs/ y .driver-runs/ en la carpeta del plan antes
     # de validar el arbol; no cuentan como cambios del usuario. El servidor del
     # dashboard escribe la orden de control (.driver-control.json y su .tmp) en la
-    # carpeta del plan.
+    # carpeta del plan. La sesion de cierre deja su borrador .final-review-<plan>.draft.md
+    # y, al terminar, el marcador .final-review-<plan>.md (pendiente 11a).
     $entries = $Porcelain -split "`0" | Where-Object { $_ }
     $dirty = $entries | Where-Object {
         $path = if ($_.Length -gt 3 -and $_[2] -eq ' ') { $_.Substring(3) } else { $_ }
-        -not ($path -match '(^|/)\.driver-status\.json$' -or $path -match '(^|/)\.driver-dashboard\.json(\.tmp)?$' -or $path -match '(^|/)\.driver-logs/' -or $path -match '(^|/)\.driver-runs/' -or $path -match '(^|/)\.driver-control\.json(\.tmp)?$')
+        -not ($path -match '(^|/)\.driver-status\.json$' -or $path -match '(^|/)\.driver-dashboard\.json(\.tmp)?$' -or $path -match '(^|/)\.driver-logs/' -or $path -match '(^|/)\.driver-runs/' -or $path -match '(^|/)\.driver-control\.json(\.tmp)?$' -or $path -match '(^|/)\.final-review-[^/]*\.md$')
     }
     return (@($dirty).Count -eq 0)
 }
