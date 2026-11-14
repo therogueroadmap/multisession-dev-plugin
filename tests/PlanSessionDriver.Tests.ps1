@@ -2790,6 +2790,23 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $text.IndexOf('NO ejecutes la ola de fixes', $closeStart) | Should Be -1
     }
 
+    It '2a: el prompt de cierre pide el pendiente humano del PR antes de PLAN_STATUS: COMPLETE' {
+        $closeStart = $text.IndexOf('$CLOSE_PROMPT_TEMPLATE = @''')
+        $closeStart | Should BeGreaterThan -1
+        $bullet = $text.IndexOf('- Pendiente humano: crear el PR de <rama de trabajo> contra <rama base>', $closeStart)
+        $bullet | Should BeGreaterThan $closeStart
+        $line = $text.IndexOf('PENDIENTE: crear el PR de <rama de trabajo> contra <rama base>', $closeStart)
+        $line | Should BeGreaterThan $bullet
+        $text | Should Match ([regex]::Escape('justo antes de esta marca, en su propia línea, escribe'))
+        $text | Should Match ([regex]::Escape('no escribas la línea PENDIENTE'))
+    }
+
+    It '2a: el mensaje final del driver repite la linea PENDIENTE del PR' {
+        $text | Should Match ([regex]::Escape('PENDIENTE: crear el PR de $pendingBranch contra $pendingBase'))
+        $text | Should Match ([regex]::Escape('la rama base registrada en ## Cierre de $markerRelativeForPrompt'))
+        $text | Should Match ([regex]::Escape('El merge, el push y el PR los hace una persona'))
+    }
+
     It '2a: limits y params se publican una vez, tras el presupuesto y antes del bucle, con aviso si fallan' {
         $modelo = @($ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.CommandAst] -and $n.GetCommandName() -eq 'Write-Host' -and $n.Extent.Text -match 'Modelo:' }, $true))
         $modelo.Count | Should Be 1

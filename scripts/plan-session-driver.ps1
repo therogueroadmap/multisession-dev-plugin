@@ -208,6 +208,11 @@ Escribe `None.` si no hubo ola.
 - Re-revisión: limpia | <N> residuales | pendiente
 - Suite: <comando> -> verde | roja: <motivo> | pendiente
 - Workspace: borrado | pendiente
+- Pendiente humano: crear el PR de <rama de trabajo> contra <rama base>
+
+La línea `- Pendiente humano:` va solo cuando el cierre termina en COMPLETE
+(escríbela antes de renombrar __DRAFT__ a __MARKER__); si terminas en BLOCKED,
+no la escribas.
 
 Después agrega siempre una sección `## Rulings` con todas las líneas `Ruling:`
 del ledger, en orden y textuales, más las que tomes en esta sesión: son
@@ -218,11 +223,15 @@ Al terminar, agrega como última línea de tu respuesta EXACTAMENTE una de estas
 marcas (nada más en esa línea):
 
 PLAN_STATUS: COMPLETE
-  (cierre terminado: la suite quedó en verde y __DRAFT__ ya es __MARKER__)
+  (cierre terminado: la suite quedó en verde y __DRAFT__ ya es __MARKER__;
+  justo antes de esta marca, en su propia línea, escribe
+  PENDIENTE: crear el PR de <rama de trabajo> contra <rama base>
+  para que el humano vea que el PR sigue pendiente)
 
 PLAN_STATUS: BLOCKED: <motivo breve>
   (la suite quedó roja o llegaste a una de las cuatro paradas de la skill; deja
-  el estado en la sección ## Cierre de __DRAFT__ y no crees __MARKER__)
+  el estado en la sección ## Cierre de __DRAFT__ y no crees __MARKER__; en este
+  caso no escribas la línea PENDIENTE)
 '@
 
 $repoRoot = Resolve-RepoRoot -ProjectPath $ProjectPath -WorkDir $WorkDir
@@ -580,6 +589,7 @@ catch { Write-Warning "No se pudo publicar el bloque control: $($_.Exception.Mes
 $baseBranch = $null
 # Pendiente 10: rama de la que el driver creo la rama de trabajo en esta corrida; $null si no la creo.
 $createdFromBranch = $null
+$closeBase = $null
 $iter = $iterBase
 $finalStatus = $null
 $finalReason = $null
@@ -1612,8 +1622,16 @@ if ($finalStatus -eq 'DONE') {
     if ($markerRelativeForPrompt) {
         Write-Host "Resultado del cierre, residuales y rulings: $markerRelativeForPrompt"
     }
-    Write-Host 'Queda la integración (merge local o PR), a cargo de una persona, en:'
+    Write-Host 'El merge, el push y el PR los hace una persona, en:'
     Write-Host "  $repoRoot"
+    $pendingBranch = $null
+    try { $pendingBranch = (Get-DriverStatus -StatusPath $statusPath).workBranch } catch { $pendingBranch = $null }
+    if (-not $pendingBranch) { try { $pendingBranch = Get-CurrentBranch -RepoRoot $repoRoot } catch { $pendingBranch = $null } }
+    if (-not $pendingBranch) { $pendingBranch = 'la rama de trabajo' }
+    $pendingBase = if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch) { $closeBase }
+    elseif ($markerRelativeForPrompt) { "la rama base registrada en ## Cierre de $markerRelativeForPrompt" }
+    else { 'la rama base registrada en ## Cierre del marcador de revisión final' }
+    Write-Host "PENDIENTE: crear el PR de $pendingBranch contra $pendingBase"
 }
 
 if ($dashboard) {
