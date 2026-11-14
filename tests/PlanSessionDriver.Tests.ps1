@@ -820,18 +820,10 @@ Describe 'plan-session-driver (Ola 1b: dashboard Python, I1, I2, B-4, D-A3)' {
         }
     }
 
-    It 'DT-19: el limite de re-revisiones esta en las dos variantes del prompt de nivel, entre el ancla y el modo headless' {
+    It 'DT-19: las dos variantes del prompt de nivel dejan el tope de re-revisiones a fix-loop.md' {
         $o = [string][char]0xF3
         $anchorMarker = ([string][char]0xDA) + 'NICAMENTE el pr' + $o + 'ximo nivel'
         $limite = 'L' + [string][char]0xED + 'mite de re-revisiones'
-        $headless = 'Esta sesi' + $o + 'n corre en modo headless'
-        $requeridos = @(
-            ('como m' + [string][char]0xE1 + 'ximo 3 re-revisiones'),
-            'DONE_WITH_CONCERNS',
-            'campo concerns',
-            'prevalece sobre las instrucciones de la skill'
-        )
-
         $strings = @($ast.FindAll({ param($n)
                     ($n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -or
                     $n -is [System.Management.Automation.Language.StringConstantExpressionAst]) -and
@@ -839,16 +831,9 @@ Describe 'plan-session-driver (Ola 1b: dashboard Python, I1, I2, B-4, D-A3)' {
         $strings.Count | Should Be 2
         foreach ($s in $strings) {
             $v = $s.Value -replace '\s+', ' '
-            $anchor = if ($v.Contains('detente sin empezar el siguiente nivel.')) { 'detente sin empezar el siguiente nivel.' } else { 'empezar el siguiente.' }
-            $iAnchor = $v.IndexOf($anchor, [System.StringComparison]::Ordinal)
-            $iLimite = $v.IndexOf($limite, [System.StringComparison]::Ordinal)
-            $iHeadless = $v.IndexOf($headless, [System.StringComparison]::Ordinal)
-            $iAnchor | Should Not Be -1
-            $iLimite | Should Not Be -1
-            $iHeadless | Should Not Be -1
-            ($iLimite -gt $iAnchor) | Should Be $true
-            ($iLimite -lt $iHeadless) | Should Be $true
-            foreach ($r in $requeridos) { $v.Contains($r) | Should Be $true }
+            $v.Contains($limite) | Should Be $false
+            $v.Contains('prevalece sobre las instrucciones de la skill') | Should Be $false
+            $v.Contains('DONE_WITH_CONCERNS') | Should Be $false
         }
     }
 }
@@ -1435,7 +1420,7 @@ Describe 'plan-session-driver (Ola 1b-driver: D1 y D5)' {
     }
 }
 
-Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
+Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' -Tag 'Slow' {
     Import-Module (Join-Path $moduleRoot 'scripts\modules\ProcessLauncher.psm1') -Force
     Import-Module (Join-Path $moduleRoot 'scripts\modules\DriverInterrupt.psm1') -Force
     Import-Module (Join-Path $moduleRoot 'scripts\modules\DriverStatus.psm1') -Force
@@ -1492,6 +1477,8 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             [scriptblock]$WhileRunning,
             [string]$RetryBackoff = '0',
             [switch]$AwaitHook,
+            # PLAN_DRIVER_AWAIT_DECISION_SECONDS hook: decision wait in seconds instead of AwaitDecisionMinutes.
+            [int]$AwaitSeconds = 0,
             [string]$OpenLog,
             # Ola 3 (PC-9): driver alternativo (una copia del runner con el perfil roto); sin el se usa el del Describe.
             [string]$DriverScript
@@ -1530,7 +1517,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             '-UseCurrentBranch', '-LivenessPollSeconds', '1', '-LivenessTimeoutMinutes', '1',
             '-RetryBackoffSeconds', $RetryBackoff, '-NoToast') + $DriverArgs
 
-        $names = @('PLAN_DRIVER_CLAUDE_PATH', 'PLAN_DRIVER_NO_DASHBOARD', 'FAKE_CLAUDE_SCENARIO', 'PLAN_DRIVER_AWAIT_WITHOUT_DASHBOARD', 'PLAN_DRIVER_OPEN_LOG')
+        $names = @('PLAN_DRIVER_CLAUDE_PATH', 'PLAN_DRIVER_NO_DASHBOARD', 'FAKE_CLAUDE_SCENARIO', 'PLAN_DRIVER_AWAIT_WITHOUT_DASHBOARD', 'PLAN_DRIVER_OPEN_LOG', 'PLAN_DRIVER_AWAIT_DECISION_SECONDS')
         $saved = @{}
         foreach ($n in $names) { $saved[$n] = [Environment]::GetEnvironmentVariable($n) }
         $outFile = Join-Path $TestDrive "$Name-out.txt"
@@ -1542,6 +1529,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             # Ola 2c: ganchos de AWAITING sin dashboard y de A6 sin abrir ventanas; siempre se fijan (o se vacian) para no heredar el entorno.
             [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_WITHOUT_DASHBOARD', $(if ($AwaitHook) { '1' } else { $null }))
             [Environment]::SetEnvironmentVariable('PLAN_DRIVER_OPEN_LOG', $(if ($OpenLog) { $OpenLog } else { $null }))
+            [Environment]::SetEnvironmentVariable('PLAN_DRIVER_AWAIT_DECISION_SECONDS', $(if ($AwaitSeconds -gt 0) { [string]$AwaitSeconds } else { $null }))
 
             $launch = Start-HeadlessProcess -FilePath (Get-Process -Id $PID).Path -ArgumentList $argv -StdoutPath $outFile -StderrPath $errFile -WorkingDirectory $repo
             # 4 llamadas como maximo por It x LivenessTimeoutMinutes 1 (60 s, tope del watchdog por intento) + 60 s de margen.
@@ -1662,6 +1650,31 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         return @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -and $_.CommandLine -like '*fake-claude.ps1*' -and $_.ProcessId -ne $PID })
     }
 
+    It 'P3: el prompt de cierre en relanzamiento lleva la base estimada por merge-base y el borrador' {
+        $name = 'e2e-cierre-base'
+        $steps = @((Get-StepNivelOk (Get-FakePlanPath $name)), (Get-StepCierreOk))
+        # develop lleva un commit propio (con fecha posterior) del que parte la rama de trabajo: su merge-base es
+        # el mas reciente y no empata con main/master (un empate hace que el driver no proponga candidata).
+        $after = {
+            param($repo)
+            git -C $repo checkout -q -b develop | Out-Null
+            $env:GIT_COMMITTER_DATE = '2099-01-01T00:00:00Z'
+            try { git -C $repo -c user.name=t -c user.email=t@example.com commit -q --allow-empty -m 'develop' | Out-Null }
+            finally { Remove-Item Env:\GIT_COMMITTER_DATE -ErrorAction SilentlyContinue }
+            git -C $repo checkout -q -b feat/cierre | Out-Null
+        }
+        $run = Invoke-FakeDriverRun -Name $name -Steps $steps -DriverArgs @('-MaxIterations', '2') -AfterInit $after
+
+        $run.Status.globalStatus | Should Be 'DONE'
+        $p = Get-FakeArg $run.Calls[1] '-p'
+        $p | Should Match ([regex]::Escape('La rama base candidata es `develop`: el driver la estimó por merge-base'))
+        $p | Should Match ([regex]::Escape('Confírmala con la sección Base branch'))
+        $p.Contains('la calculó el driver') | Should Be $false
+        $p | Should Match ([regex]::Escape('.final-review-2026-10-27-falso.draft.md'))
+        $p.Contains('__BASE__') | Should Be $false
+        $p.Contains('__DRAFT__') | Should Be $false
+    }
+
     It 'D1: transitorio, reintento con --resume y DONE, sin consumir el presupuesto' {
         $name = 'e2e-retry-done'
         $steps = @((Get-StepTransitorio), (Get-StepNivelOk (Get-FakePlanPath $name)), (Get-StepCierreOk))
@@ -1757,7 +1770,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $id3 | Should Not BeNullOrEmpty
         $id3 | Should Not Be $id1
         (@($run.Calls[2].args) -contains '--resume') | Should Be $false
-        (Get-FakeArg $run.Calls[2] '-p') | Should Match 'my-subagent-driven-development'
+        (Get-FakeArg $run.Calls[2] '-p') | Should Match 'rogue-workflow:subagent-driven-development'
 
         $h = @($run.Status.history)
         $h[2].attempt | Should Be 2
@@ -2012,15 +2025,15 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $id = '25555555-5555-4555-8555-555555555555'
         $s1 = Add-StepControl (Get-StepNivelOk (Get-FakePlanPath $name)) $id 'pause'
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -DriverArgs @('-AwaitDecisionMinutes', '1')
+        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1')
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'STOPPED'
         $run.Status.cause | Should Be 'pausa_vencida'
         $run.Status.reason | Should Be 'Pausa vencida: sin reanudar en 1 min'
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 55
-        $sw.Elapsed.TotalSeconds | Should BeLessThan 150
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 4
+        $sw.Elapsed.TotalSeconds | Should BeLessThan 40
     }
 
     It '2b: una orden no valida en el estado se rechaza y la corrida sigue' {
@@ -2102,14 +2115,14 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             if (-not $st.ContainsKey('afterSet') -and $cur.control -and $cur.control.last -and $cur.control.last.id -eq $idSet) {
                 $st['afterSet'] = $cur
             }
-            # 75 s > 60 s de AwaitDecisionMinutes 1: si el plazo siguiera vivo, la pausa ya habria vencido.
-            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['pausedAt'].AddSeconds(75)) {
+            # 15 s = 3 times the 5 s deadline of the hook: si el plazo siguiera vivo, la pausa ya habria vencido.
+            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['pausedAt'].AddSeconds(15)) {
                 $st['stopSent'] = $true
                 Write-FakeControl -Repo $repo -Id $idStop -Action 'stop'
             }
         }
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
+        $run = Invoke-FakeDriverRun -Name $name -Steps @($s1, (Get-StepCierreOk)) -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'STOPPED'
@@ -2132,7 +2145,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $acts[2].action | Should Be 'stop'
         foreach ($a in $acts) { $a.result | Should Be 'applied' }
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 75
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 15
     }
 
     It '2b-2: pausa durante el backoff: PAUSED, reanudar y reintento con --resume sin esperar el backoff' {
@@ -2340,15 +2353,15 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
     It '2c: la espera vence y cierra con el estado, el motivo y la causa originales' {
         $name = 'e2e-2c-expire'
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'elegir A o B')) -AwaitHook -DriverArgs @('-AwaitDecisionMinutes', '1')
+        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'elegir A o B')) -AwaitHook -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1')
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'BLOCKED'
         $run.Status.reason | Should Be 'elegir A o B (sin decisión en 1 min)'
         ($run.Status.PSObject.Properties.Name -contains 'awaiting') | Should Be $false
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 55
-        $sw.Elapsed.TotalSeconds | Should BeLessThan 150
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 4
+        $sw.Elapsed.TotalSeconds | Should BeLessThan 40
     }
 
     It '2c: detener en AWAITING cierra STOPPED con causa dashboard' {
@@ -2468,14 +2481,14 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
             if (-not $st.ContainsKey('afterSet') -and $cur.control -and $cur.control.last -and $cur.control.last.id -eq $idSet) {
                 $st['afterSet'] = $cur
             }
-            # 75 s > 60 s de AwaitDecisionMinutes 1: si el plazo siguiera vivo, la espera ya habria vencido.
-            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['awaitAt'].AddSeconds(75)) {
+            # 15 s = 3 times the 5 s deadline of the hook: si el plazo siguiera vivo, la espera ya habria vencido.
+            if ($st.ContainsKey('afterSet') -and -not $st.ContainsKey('stopSent') -and (Get-Date) -ge $st['awaitAt'].AddSeconds(15)) {
                 $st['stopSent'] = $true
                 Write-FakeControl -Repo $repo -Id $idStop -Action 'stop'
             }
         }
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
-        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'x')) -AwaitHook -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
+        $run = Invoke-FakeDriverRun -Name $name -Steps @((Get-StepBloqueado 'x')) -AwaitHook -AwaitSeconds 5 -DriverArgs @('-AwaitDecisionMinutes', '1') -WhileRunning $watch
         $sw.Stop()
 
         $run.Status.globalStatus | Should Be 'STOPPED'
@@ -2487,7 +2500,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $after.awaiting.deadline | Should BeNullOrEmpty
         $after.limits.awaitDecisionMinutes | Should Be 0
         @($run.Calls).Count | Should Be 1
-        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 75
+        $sw.Elapsed.TotalSeconds | Should BeGreaterThan 15
     }
 
     It '2c-3: tope de costo tras el backoff: retry session rechazado por tope y retry level con sesion nueva' {
@@ -2780,12 +2793,30 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $closeStart | Should BeGreaterThan -1
         $endMark = $text.IndexOf('Al terminar, agrega como última línea de tu respuesta EXACTAMENTE una de estas', $closeStart)
         $endMark | Should BeGreaterThan -1
-        foreach ($lit in @('**Veredicto:** <texto breve del veredicto>', '| # | Severidad | Ubicación | Descripción | Fix sugerido |', 'La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR')) {
+        foreach ($lit in @('**Veredicto:** <texto breve del veredicto>', '| # | Severidad | Ubicación | Descripción | Fix sugerido |', 'La celda Severidad lleva exactamente CRITICAL, IMPORTANT o MINOR', 'sección `## Rulings` con todas las líneas', 'rogue-workflow:reviewer', '__BASE__', '__DRAFT__', 'FINAL', 'final-review.md')) {
             $text | Should Match ([regex]::Escape($lit))
             $idx = $text.IndexOf($lit, $closeStart)
             $idx | Should BeGreaterThan $closeStart
             $idx | Should BeLessThan $endMark
         }
+        $text.IndexOf('NO ejecutes la ola de fixes', $closeStart) | Should Be -1
+    }
+
+    It '2a: el prompt de cierre pide el pendiente humano del PR antes de PLAN_STATUS: COMPLETE' {
+        $closeStart = $text.IndexOf('$CLOSE_PROMPT_TEMPLATE = @''')
+        $closeStart | Should BeGreaterThan -1
+        $bullet = $text.IndexOf('- Pendiente humano: crear el PR de <rama de trabajo> contra <rama base>', $closeStart)
+        $bullet | Should BeGreaterThan $closeStart
+        $line = $text.IndexOf('PENDIENTE: crear el PR de <rama de trabajo> contra <rama base>', $closeStart)
+        $line | Should BeGreaterThan $bullet
+        $text | Should Match ([regex]::Escape('justo antes de esta marca, en su propia línea, escribe'))
+        $text | Should Match ([regex]::Escape('no escribas la línea PENDIENTE'))
+    }
+
+    It '2a: el mensaje final del driver repite la linea PENDIENTE del PR' {
+        $text | Should Match ([regex]::Escape('PENDIENTE: crear el PR de $pendingBranch contra $pendingBase'))
+        $text | Should Match ([regex]::Escape('la rama base registrada en ## Cierre de $markerRelativeForPrompt'))
+        $text | Should Match ([regex]::Escape('El merge, el push y el PR los hace una persona'))
     }
 
     It '2a: limits y params se publican una vez, tras el presupuesto y antes del bucle, con aviso si fallan' {
@@ -2842,6 +2873,15 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $text | Should Match ([regex]::Escape('$baseBranch = Initialize-WorkBranch -RepoRoot $repoRoot -Branch $workBranch'))
         $text | Should Not Match ([regex]::Escape('Initialize-WorkBranch -RepoRoot $repoRoot -Branch $workBranch | Out-Null'))
         $text | Should Match ([regex]::Escape('$baseBranch = Resolve-WorkspaceBaseBranch -RepoRoot $repoRoot'))
+    }
+
+    It '2b: la base en imperativo solo se usa si la creo el driver (closeBase igual a knownBase, de este run o persistida)' {
+        $text | Should Match ([regex]::Escape('if ($closeBase -and $knownBase -and $closeBase -eq $knownBase)'))
+        $text | Should Match ([regex]::Escape('Set-DriverStatusBranch -StatusPath $statusPath -WorkBranch $workBranch -BaseBranch $baseBranch'))
+        $text | Should Match ([regex]::Escape('$knownBase = (Get-DriverStatus -StatusPath $statusPath).baseBranch'))
+        $text | Should Match ([regex]::Escape('La rama base candidata es'))
+        $text | Should Match ([regex]::Escape('no la formules como pregunta: termina con PLAN_STATUS: BLOCKED: rama base sin confirmar'))
+        $text | Should Not Match ([regex]::Escape('pregunta o detente'))
     }
 
     function Test-InNodeRange($Node, $Container) {

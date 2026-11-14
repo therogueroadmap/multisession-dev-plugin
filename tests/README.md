@@ -6,7 +6,16 @@ Las pruebas usan Pester 3.4.0 sobre PowerShell 7. Para correr un archivo:
 pwsh -NoProfile -Command 'Import-Module Pester -RequiredVersion 3.4.0 -Force; Invoke-Pester -Path tests\Dashboard.Tests.ps1'
 ```
 
-Para correr toda la suite, usa `-Path tests`.
+There are two ways to run the suite:
+
+```powershell
+# Quick (about 2 min): skips the end-to-end driver tests, tagged Slow
+pwsh -NoProfile -Command 'Import-Module Pester -RequiredVersion 3.4.0 -Force; Invoke-Pester -Path tests -ExcludeTag Slow'
+# Full (about 7-8 min): for the close
+pwsh -NoProfile -Command 'Import-Module Pester -RequiredVersion 3.4.0 -Force; Invoke-Pester -Path tests'
+```
+
+To run only the slow part, use `-Tag Slow` (about 5 min). The tests that wait for the decision deadline use the `PLAN_DRIVER_AWAIT_DECISION_SECONDS` hook (seconds, tests only) instead of waiting minutes.
 
 ## Dependencias opcionales
 

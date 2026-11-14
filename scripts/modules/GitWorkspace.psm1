@@ -34,11 +34,12 @@ function Test-PorcelainClean {
     # reemplazo atomico), .driver-logs/ y .driver-runs/ en la carpeta del plan antes
     # de validar el arbol; no cuentan como cambios del usuario. El servidor del
     # dashboard escribe la orden de control (.driver-control.json y su .tmp) en la
-    # carpeta del plan.
+    # carpeta del plan. La sesion de cierre deja su borrador .final-review-<plan>.draft.md
+    # y, al terminar, el marcador .final-review-<plan>.md (pendiente 11a).
     $entries = $Porcelain -split "`0" | Where-Object { $_ }
     $dirty = $entries | Where-Object {
         $path = if ($_.Length -gt 3 -and $_[2] -eq ' ') { $_.Substring(3) } else { $_ }
-        -not ($path -match '(^|/)\.driver-status\.json$' -or $path -match '(^|/)\.driver-dashboard\.json(\.tmp)?$' -or $path -match '(^|/)\.driver-logs/' -or $path -match '(^|/)\.driver-runs/' -or $path -match '(^|/)\.driver-control\.json(\.tmp)?$')
+        -not ($path -match '(^|/)\.driver-status\.json$' -or $path -match '(^|/)\.driver-dashboard\.json(\.tmp)?$' -or $path -match '(^|/)\.driver-logs/' -or $path -match '(^|/)\.driver-runs/' -or $path -match '(^|/)\.driver-control\.json(\.tmp)?$' -or $path -match '(^|/)\.final-review-[^/]*\.md$')
     }
     return (@($dirty).Count -eq 0)
 }
@@ -63,6 +64,33 @@ function Test-BranchExists {
 function Get-CurrentBranch {
     param([Parameter(Mandatory = $true)][string]$RepoRoot)
     return (git -C $RepoRoot rev-parse --abbrev-ref HEAD 2>$null)
+}
+
+# Pendiente 10: rama base para la sesion de cierre. La que el driver uso al crear la
+# rama de trabajo en esta corrida; si no, la candidata (develop, main, master, sin la
+# rama actual) cuyo merge-base con HEAD es el commit mas reciente, con empate por ese
+# orden; $null si no hay ninguna o si hay empate (la skill pregunta).
+function Resolve-CloseBaseBranch {
+    param(
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [AllowNull()][AllowEmptyString()][string]$KnownBase
+    )
+    $current = Get-CurrentBranch -RepoRoot $RepoRoot
+    if (-not [string]::IsNullOrWhiteSpace($KnownBase) -and $KnownBase -ne $current -and (Test-BranchExists -RepoRoot $RepoRoot -Branch $KnownBase)) { return $KnownBase }
+    $best = $null
+    $bestTime = [long]-1
+    $tied = $false
+    foreach ($b in @('develop', 'main', 'master')) {
+        if ($b -eq $current -or -not (Test-BranchExists -RepoRoot $RepoRoot -Branch $b)) { continue }
+        $mb = git -C $RepoRoot merge-base $b HEAD 2>$null
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($mb)) { continue }
+        $t = [long](git -C $RepoRoot show -s --format=%ct $mb 2>$null)
+        if ($t -gt $bestTime) { $best = $b; $bestTime = $t; $tied = $false }
+        elseif ($t -eq $bestTime) { $tied = $true }
+    }
+    # A tie is ambiguous: the skill's Base branch section asks the user, so no candidate.
+    if ($tied) { return $null }
+    return $best
 }
 
 function Initialize-WorkBranch {
@@ -125,7 +153,7 @@ function Assert-ProjectIsRepo {
     if (Test-GitRepo -RepoRoot $ProjectPath) { return }
     $repos = @(Get-ChildGitRepos -Path $ProjectPath)
     if ($repos.Count -gt 0) {
-        throw "GitWorkspace: '$ProjectPath' no es un repositorio git pero contiene los repos: $($repos -join ', '). Este driver es single-repo: usa -WorkDir <repo> con un plan de ese repo, o ejecuta el plan con my-subagent-driven-development si es multi-repo."
+        throw "GitWorkspace: '$ProjectPath' no es un repositorio git pero contiene los repos: $($repos -join ', '). Este driver es single-repo: usa -WorkDir <repo> con un plan de ese repo, o ejecuta el plan con rogue-workflow:subagent-driven-development si es multi-repo."
     }
     throw "GitWorkspace: '$ProjectPath' no es un repositorio git."
 }
@@ -174,4 +202,4 @@ function Resolve-BootstrapBranchAction {
     return 'resume'
 }
 
-Export-ModuleMember -Function Test-GitRepo, Resolve-WorkspaceBaseBranch, Get-PlanBranchName, Test-PorcelainClean, Test-WorkingTreeClean, Test-BranchExists, Get-CurrentBranch, Initialize-WorkBranch, Use-CurrentWorkBranch, Get-ChildGitRepos, Assert-ProjectIsRepo, Resume-WorkBranch, Resolve-BootstrapBranchAction
+Export-ModuleMember -Function Test-GitRepo, Resolve-WorkspaceBaseBranch, Get-PlanBranchName, Test-PorcelainClean, Test-WorkingTreeClean, Test-BranchExists, Get-CurrentBranch, Resolve-CloseBaseBranch, Initialize-WorkBranch, Use-CurrentWorkBranch, Get-ChildGitRepos, Assert-ProjectIsRepo, Resume-WorkBranch, Resolve-BootstrapBranchAction

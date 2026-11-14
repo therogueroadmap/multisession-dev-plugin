@@ -15,11 +15,14 @@ READ_MAX = 1 << 20     # bytes que se leen y se parsean
 TITLE_MAX = 200        # caracteres de title
 FINDINGS_MAX = 200     # entradas de findings
 VERDICT_MAX = 500      # caracteres de verdict
+PENDING_MAX = 500      # caracteres de pendingHuman
 
 _SEV_RE = re.compile(r"(CRITICAL|IMPORTANT|MINOR)\b")
 _HEADING_RE = re.compile(r"###\s+\d+\.\s+(CRITICAL|IMPORTANT|MINOR)\.\s+(.+?)\s*$")
 _VERDICT_HEADING_RE = re.compile(r"##\s+Veredicto\b\s*:?\s*(.*)$")
 _VERDICT_PREFIX = "**Veredicto:**"
+_CLOSE_HEADING_RE = re.compile(r"##\s+Cierre\b")
+_PENDING_PREFIX = "- Pendiente humano:"
 _LOCATION_NAMES = ("ubicación", "ubicacion", "descripción", "descripcion")
 _DESCRIPTION_NAMES = ("descripción", "descripcion")
 
@@ -111,6 +114,26 @@ def _parse_verdict(lines: list[str]) -> str | None:
     return None
 
 
+def parse_pending_human(text: str) -> str | None:
+    """Texto del bullet "- Pendiente humano:" dentro de la seccion "## Cierre"; None si falta o esta vacio."""
+    in_close = False
+    in_fence = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if re.match(r"#{1,6}\s", stripped):
+            in_close = _CLOSE_HEADING_RE.match(stripped) is not None
+            continue
+        if in_close and stripped.startswith(_PENDING_PREFIX):
+            rest = stripped[len(_PENDING_PREFIX):].strip()
+            return rest[:PENDING_MAX] if rest else None
+    return None
+
+
 def _counts(findings: list[dict]) -> dict:
     counts = {sev: 0 for sev in SEVERITIES}
     for f in findings:
@@ -164,4 +187,5 @@ def load_final_review(folder: Path, status: dict) -> dict:
     if verdict is not None:
         verdict = verdict[:VERDICT_MAX]
     return {"exists": True, "verdict": verdict, "counts": parsed["counts"],
-            "findings": parsed["findings"][:FINDINGS_MAX], "raw": raw}
+            "findings": parsed["findings"][:FINDINGS_MAX], "raw": raw,
+            "pendingHuman": parse_pending_human(text)}

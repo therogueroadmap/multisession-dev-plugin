@@ -60,6 +60,43 @@ Describe 'GitWorkspace' {
         }
     }
 
+    Context 'Resolve-CloseBaseBranch' {
+        It 'devuelve la rama conocida si no es la actual' {
+            $repo = New-TempRepo -Branches @('feat/x', 'develop')
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should Be 'develop'
+        }
+        It 'no devuelve la rama conocida si no existe' {
+            $repo = New-TempRepo -Branches @('feat/x', 'develop')
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'fantasma' | Should Be 'develop'
+        }
+        It 'sin rama conocida elige la candidata con el merge-base mas reciente' {
+            $repo = New-TempRepo -Branches @('main', 'develop')
+            $env:GIT_COMMITTER_DATE = '2030-01-01T00:00:00Z'
+            try {
+                Set-Content -LiteralPath (Join-Path $repo 'm.txt') -Value 'm' -Encoding utf8
+                git -C $repo add m.txt | Out-Null
+                git -C $repo commit -q -m 'main avanza' | Out-Null
+            }
+            finally { Remove-Item Env:GIT_COMMITTER_DATE -ErrorAction SilentlyContinue }
+            git -C $repo checkout -q -b feat/x | Out-Null
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should Be 'main'
+        }
+        It 'con empate de merge-base devuelve $null para que la skill pregunte' {
+            $repo = New-TempRepo -Branches @('main', 'develop')
+            git -C $repo checkout -q -b feat/x | Out-Null
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should BeNullOrEmpty
+        }
+        It 'con empate la rama conocida sigue ganando' {
+            $repo = New-TempRepo -Branches @('main', 'develop')
+            git -C $repo checkout -q -b feat/x | Out-Null
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should Be 'develop'
+        }
+        It 'descarta la rama actual como conocida y como candidata' {
+            $repo = New-TempRepo -Branches @('develop')
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should BeNullOrEmpty
+        }
+    }
+
     Context 'Get-PlanBranchName' {
         It 'propone el nombre del feature quitando el prefijo de fecha YYYY-MM-DD-' {
             Get-PlanBranchName -PlanFilePath 'C:\x\docs\2026-09-11-bloque-b-web.md' |
@@ -125,6 +162,19 @@ Describe 'GitWorkspace' {
             Test-PorcelainClean -Porcelain $porcelain | Should Be $true
             Test-PorcelainClean -Porcelain ($porcelain + " M src/a.ps1`0") | Should Be $false
         }
+        It 'Test-PorcelainClean ignora el marcador de cierre (.final-review-*.md)' {
+            $porcelain = "?? docs/superpowers/plans/.final-review-2026-11-13-plan.md`0"
+            Test-PorcelainClean -Porcelain $porcelain | Should Be $true
+            Test-PorcelainClean -Porcelain " M docs/superpowers/plans/.final-review-x.md`0" | Should Be $true
+            Test-PorcelainClean -Porcelain ($porcelain + " M src/a.ps1`0") | Should Be $false
+        }
+        It 'Test-PorcelainClean ignora el borrador del cierre (.final-review-*.draft.md)' {
+            Test-PorcelainClean -Porcelain "?? docs/superpowers/plans/.final-review-2026-11-13-plan.draft.md`0" | Should Be $true
+        }
+        It 'Test-PorcelainClean cuenta como sucio un archivo que no es marcador de cierre' {
+            Test-PorcelainClean -Porcelain "?? docs/final-review-x.md`0" | Should Be $false
+            Test-PorcelainClean -Porcelain "?? docs/superpowers/plans/.final-review-x.txt`0" | Should Be $false
+        }
     }
 
     Context 'Initialize-WorkBranch (politica estricta de bootstrap)' {
@@ -187,12 +237,12 @@ Describe 'GitWorkspace' {
             $repo = New-TempRepo -Branches @('main')
             { Assert-ProjectIsRepo -ProjectPath $repo } | Should Not Throw
         }
-        It 'en una raiz multi-repo nombra los repos y sugiere -WorkDir o my-subagent-driven-development' {
+        It 'en una raiz multi-repo nombra los repos y sugiere -WorkDir o rogue-workflow:subagent-driven-development' {
             $root = New-MultiRepoRoot -Repos @('web', 'api')
             $msg = Get-ThrownMessage { Assert-ProjectIsRepo -ProjectPath $root }
             $msg.Contains('contiene los repos: api, web') | Should Be $true
             $msg.Contains('-WorkDir') | Should Be $true
-            $msg.Contains('my-subagent-driven-development') | Should Be $true
+            $msg.Contains('rogue-workflow:subagent-driven-development') | Should Be $true
         }
         It 'sin subrepos conserva el mensaje "no es un repositorio git"' {
             $root = New-MultiRepoRoot -Plain @('docs')

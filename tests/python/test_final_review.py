@@ -240,3 +240,49 @@ def test_nombre_con_acentos_desde_planfile_y_rutas_siguen_rechazadas(tmp_path):
                    ".final-review-á\n.md"):
         data = final_review.load_final_review(tmp_path, {"phase": {"finalReviewFile": nombre}})
         assert data == {"exists": False}, nombre
+
+
+# ------------------------------------------------- pendiente humano (## Cierre)
+
+CIERRE = """**Veredicto:** Aprobado
+
+## Cierre
+- Rama base: main
+- Ola de fixes: sin ola
+- Pendiente humano: crear el PR de feat/x contra main
+
+## Rulings
+None.
+"""
+
+
+def test_pendiente_humano_se_lee_de_la_seccion_cierre(tmp_path):
+    (tmp_path / ".final-review-p.md").write_text(CIERRE, encoding="utf-8")
+    data = final_review.load_final_review(
+        tmp_path, {"phase": {"finalReviewFile": ".final-review-p.md"}})
+    assert data["pendingHuman"] == "crear el PR de feat/x contra main"
+
+
+def test_pendiente_humano_ausente_o_fuera_de_cierre_es_none(tmp_path):
+    assert final_review.parse_pending_human(FORMATO_CIERRE) is None
+    fuera = "- Pendiente humano: crear el PR de a contra b\n\n## Cierre\n- Rama base: main\n"
+    assert final_review.parse_pending_human(fuera) is None
+    (tmp_path / ".final-review-p.md").write_text(FORMATO_CIERRE, encoding="utf-8")
+    data = final_review.load_final_review(
+        tmp_path, {"phase": {"finalReviewFile": ".final-review-p.md"}})
+    assert data["pendingHuman"] is None
+
+
+def test_pendiente_humano_acotado():
+    texto = "## Cierre\n- Pendiente humano: " + "x" * 600 + "\n"
+    assert len(final_review.parse_pending_human(texto)) == 500
+
+
+def test_pendiente_humano_tras_bloque_cercado_con_comentario():
+    texto = ("## Cierre\n\n```\n# gh pr create\n```\n\n- Pendiente humano: abrir el PR\n")
+    assert final_review.parse_pending_human(texto) == "abrir el PR"
+
+
+def test_pendiente_humano_solo_dentro_del_cerco_no_cuenta():
+    texto = "## Cierre\n\n```\n- Pendiente humano: falso\n```\n"
+    assert final_review.parse_pending_human(texto) is None

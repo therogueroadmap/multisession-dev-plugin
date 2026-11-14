@@ -22,7 +22,7 @@ for ($i = 0; $i -lt $args.Count; $i++) {
 '@
         $out = Join-Path $TestDrive 'out.txt'
         $err = Join-Path $TestDrive 'err.txt'
-        $prompt = "Ejecuta el plan docs\plan.md con la skill" + [Environment]::NewLine + 'my-subagent-driven-development y autoriza "git commit".'
+        $prompt = "Ejecuta el plan docs\plan.md con la skill" + [Environment]::NewLine + 'rogue-workflow:subagent-driven-development y autoriza "git commit".'
 
         # pwsh consume -NoProfile/-File/<script>; el hijo recibe solo los 4 args
         # restantes: -p, <prompt>, --model, claude-opus-5-5.
