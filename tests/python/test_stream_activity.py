@@ -533,3 +533,10 @@ def test_final_sin_mayusculas_no_es_cierre():
     st = sa.new_state()
     sa.feed(st, _started("r1", "Final whole-branch review", "rogue-workflow:reviewer"))
     assert sa.to_view(st, NOW)["bars"][0]["task"] == "otras"
+
+
+def test_final_con_sufijo_no_es_cierre():
+    for desc in ("FINAL-x review", "FINAL. review", "FINALIZE docs"):
+        st = sa.new_state()
+        sa.feed(st, _started("r1", desc, "rogue-workflow:reviewer"))
+        assert sa.to_view(st, NOW)["bars"][0]["task"] == "otras", desc

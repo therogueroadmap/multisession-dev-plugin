@@ -27,7 +27,7 @@ EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 TASK_RE = re.compile(r"T(\d+)", re.I)
 OTHER_TASK = "otras"
 CLOSE_TASK = "Cierre"
-CLOSE_PREFIX_RE = re.compile(r"\s*FINAL\b")  # prefijo que pide el prompt de cierre del driver
+CLOSE_PREFIX_RE = re.compile(r"\s*FINAL(?:\s|:|$)")  # prefijo que pide el prompt de cierre del driver
 CHUNK = 1 << 20  # bloque de lectura de read_incremental (1 MiB)
 
 

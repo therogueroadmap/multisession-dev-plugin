@@ -117,9 +117,15 @@ def _parse_verdict(lines: list[str]) -> str | None:
 def parse_pending_human(text: str) -> str | None:
     """Texto del bullet "- Pendiente humano:" dentro de la seccion "## Cierre"; None si falta o esta vacio."""
     in_close = False
+    in_fence = False
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.startswith("#"):
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        if re.match(r"#{1,6}\s", stripped):
             in_close = _CLOSE_HEADING_RE.match(stripped) is not None
             continue
         if in_close and stripped.startswith(_PENDING_PREFIX):

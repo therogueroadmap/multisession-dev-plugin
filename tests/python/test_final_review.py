@@ -276,3 +276,13 @@ def test_pendiente_humano_ausente_o_fuera_de_cierre_es_none(tmp_path):
 def test_pendiente_humano_acotado():
     texto = "## Cierre\n- Pendiente humano: " + "x" * 600 + "\n"
     assert len(final_review.parse_pending_human(texto)) == 500
+
+
+def test_pendiente_humano_tras_bloque_cercado_con_comentario():
+    texto = ("## Cierre\n\n```\n# gh pr create\n```\n\n- Pendiente humano: abrir el PR\n")
+    assert final_review.parse_pending_human(texto) == "abrir el PR"
+
+
+def test_pendiente_humano_solo_dentro_del_cerco_no_cuenta():
+    texto = "## Cierre\n\n```\n- Pendiente humano: falso\n```\n"
+    assert final_review.parse_pending_human(texto) is None
