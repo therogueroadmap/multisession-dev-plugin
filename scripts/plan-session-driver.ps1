@@ -1212,7 +1212,7 @@ while (($iter - $iterBase) -lt $sessionBudget) {
             else {
                 $baseBranch = Initialize-WorkBranch -RepoRoot $repoRoot -Branch $workBranch
                 $createdFromBranch = $baseBranch
-                Set-DriverStatusBranch -StatusPath $statusPath -WorkBranch $workBranch | Out-Null
+                Set-DriverStatusBranch -StatusPath $statusPath -WorkBranch $workBranch -BaseBranch $baseBranch | Out-Null
                 Write-Host "Rama de trabajo creada: $workBranch"
             }
             $branchReadyThisRun = $true
@@ -1267,9 +1267,15 @@ while (($iter - $iterBase) -lt $sessionBudget) {
     $closeBaseText = $null
     if ($decision.Mode -eq 'close') {
         $closeBase = $null
-        try { $closeBase = Resolve-CloseBaseBranch -RepoRoot $repoRoot -KnownBase $createdFromBranch }
+        # Base the driver used when it created the branch: this run, or persisted in the
+        # status by an earlier run (relaunch, resume, -UseCurrentBranch).
+        $knownBase = $createdFromBranch
+        if (-not $knownBase) {
+            try { $knownBase = (Get-DriverStatus -StatusPath $statusPath).baseBranch } catch { $knownBase = $null }
+        }
+        try { $closeBase = Resolve-CloseBaseBranch -RepoRoot $repoRoot -KnownBase $knownBase }
         catch { Write-Warning "No se pudo calcular la rama base del cierre: $($_.Exception.Message)" }
-        $closeBaseText = if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch) {
+        $closeBaseText = if ($closeBase -and $knownBase -and $closeBase -eq $knownBase) {
             'La rama base es `' + $closeBase + '`: la calculó el driver. Úsala como base en la sección Base branch de `final-review.md`.'
         }
         elseif ($closeBase) {
@@ -1628,7 +1634,7 @@ if ($finalStatus -eq 'DONE') {
     try { $pendingBranch = (Get-DriverStatus -StatusPath $statusPath).workBranch } catch { $pendingBranch = $null }
     if (-not $pendingBranch) { try { $pendingBranch = Get-CurrentBranch -RepoRoot $repoRoot } catch { $pendingBranch = $null } }
     if (-not $pendingBranch) { $pendingBranch = 'la rama de trabajo' }
-    $pendingBase = if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch) { $closeBase }
+    $pendingBase = if ($closeBase -and $knownBase -and $closeBase -eq $knownBase) { $closeBase }
     elseif ($markerRelativeForPrompt) { "la rama base registrada en ## Cierre de $markerRelativeForPrompt" }
     else { 'la rama base registrada en ## Cierre del marcador de revisión final' }
     Write-Host "PENDIENTE: crear el PR de $pendingBranch contra $pendingBase"

@@ -2863,8 +2863,10 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $text | Should Match ([regex]::Escape('$baseBranch = Resolve-WorkspaceBaseBranch -RepoRoot $repoRoot'))
     }
 
-    It '2b: la base en imperativo solo se usa si la creo este run (closeBase igual a createdFromBranch)' {
-        $text | Should Match ([regex]::Escape('if ($closeBase -and $createdFromBranch -and $closeBase -eq $createdFromBranch)'))
+    It '2b: la base en imperativo solo se usa si la creo el driver (closeBase igual a knownBase, de este run o persistida)' {
+        $text | Should Match ([regex]::Escape('if ($closeBase -and $knownBase -and $closeBase -eq $knownBase)'))
+        $text | Should Match ([regex]::Escape('Set-DriverStatusBranch -StatusPath $statusPath -WorkBranch $workBranch -BaseBranch $baseBranch'))
+        $text | Should Match ([regex]::Escape('$knownBase = (Get-DriverStatus -StatusPath $statusPath).baseBranch'))
         $text | Should Match ([regex]::Escape('La rama base candidata es'))
         $text | Should Match ([regex]::Escape('no la formules como pregunta: termina con PLAN_STATUS: BLOCKED: rama base sin confirmar'))
         $text | Should Not Match ([regex]::Escape('pregunta o detente'))

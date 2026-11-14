@@ -43,9 +43,9 @@ The dashboard listens on port 8787 by default (`-Port`).
 ### Limits
 
 - One repository per run. A plan that spans several repositories cannot run with the driver: run it interactively, or split it into one plan per repository.
-- A clean working tree. List `docs/superpowers/specs/` and `docs/superpowers/plans/` in `.gitignore`: that covers the plan, its spec, the checkpoint and the driver's own files.
+- A clean working tree. List `docs/superpowers/specs/` and `docs/superpowers/plans/` in `.gitignore`: that covers the plan, its spec, the checkpoint and the driver's own files, as long as the plan lives under `docs/superpowers/plans/`.
 - By default the driver creates a work branch named after the plan, from `develop`, `main` or `master`. With `-UseCurrentBranch` it runs on the active branch instead.
-- When it finishes, the plan is closed in full: final review, its fix wave, the scoped re-review, the rulings and the full suite, with the result in `docs/superpowers/plans/.final-review-<plan>.md`. The close session ends with `COMPLETE`; it never merges, pushes or opens a pull request. If the close is cut short, the record stays as `.final-review-<plan>.draft.md` and the next close session resumes from it. The dashboard then shows "Lista para integrar, falta PR": merging and opening the pull request are up to you.
+- When it finishes, the plan is closed in full: final review, its fix wave, the scoped re-review, the rulings and the full suite, with the result in `docs/superpowers/plans/.final-review-<plan>.md`. The close session ends with `COMPLETE`; it never merges, pushes or opens a pull request. If the close is cut short, the record stays as `.final-review-<plan>.draft.md` and the next close session resumes from it. The dashboard can then show "Lista para integrar, falta PR": merging and opening the pull request are up to you.
 
 ## Tests
 

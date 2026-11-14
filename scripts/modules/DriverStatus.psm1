@@ -88,11 +88,15 @@ function New-DriverStatus {
     # en modo continue leeria $null y abortaria un resume legitimo. Un bootstrap
     # nuevo lo vuelve a fijar despues via Set-DriverStatusBranch.
     $existingBranch = $null
+    $existingBase = $null
     if (Test-Path -LiteralPath $StatusPath) {
         try {
             $prev = Read-DriverStatusForWrite -StatusPath $StatusPath
             if ($prev.PSObject.Properties.Name -contains 'workBranch') {
                 $existingBranch = $prev.workBranch
+            }
+            if ($prev.PSObject.Properties.Name -contains 'baseBranch') {
+                $existingBase = $prev.baseBranch
             }
         }
         catch {
@@ -119,6 +123,7 @@ function New-DriverStatus {
         projectPath     = $ProjectPath
         planFile        = $PlanFile
         workBranch      = $existingBranch
+        baseBranch      = $existingBase
         startedAt       = $now
         updatedAt       = $now
         globalStatus    = 'RUNNING'
@@ -403,12 +408,26 @@ function Set-DriverStatusBranch {
         [Parameter(Mandatory = $true)]
         [string]$StatusPath,
         [AllowNull()]
-        [string]$WorkBranch
+        [string]$WorkBranch,
+        # Additive: base branch the driver created WorkBranch from. Persisted so the
+        # close session still gets it after a relaunch or resume. When omitted it is
+        # kept if WorkBranch does not change, and cleared if it does (stale base).
+        [AllowNull()]
+        [string]$BaseBranch
     )
 
     $status = Read-DriverStatusForWrite -StatusPath $StatusPath
     if (-not ($status.PSObject.Properties.Name -contains 'workBranch')) {
         $status | Add-Member -NotePropertyName 'workBranch' -NotePropertyValue $null -Force
+    }
+    if (-not ($status.PSObject.Properties.Name -contains 'baseBranch')) {
+        $status | Add-Member -NotePropertyName 'baseBranch' -NotePropertyValue $null -Force
+    }
+    if ($PSBoundParameters.ContainsKey('BaseBranch')) {
+        $status.baseBranch = $BaseBranch
+    }
+    elseif ($status.workBranch -ne $WorkBranch) {
+        $status.baseBranch = $null
     }
     $status.workBranch = $WorkBranch
     $status.updatedAt = (Get-Date).ToString('o')

@@ -69,7 +69,7 @@ function Get-CurrentBranch {
 # Pendiente 10: rama base para la sesion de cierre. La que el driver uso al crear la
 # rama de trabajo en esta corrida; si no, la candidata (develop, main, master, sin la
 # rama actual) cuyo merge-base con HEAD es el commit mas reciente, con empate por ese
-# orden; $null si no hay ninguna.
+# orden; $null si no hay ninguna o si hay empate (la skill pregunta).
 function Resolve-CloseBaseBranch {
     param(
         [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -79,13 +79,17 @@ function Resolve-CloseBaseBranch {
     if (-not [string]::IsNullOrWhiteSpace($KnownBase) -and $KnownBase -ne $current -and (Test-BranchExists -RepoRoot $RepoRoot -Branch $KnownBase)) { return $KnownBase }
     $best = $null
     $bestTime = [long]-1
+    $tied = $false
     foreach ($b in @('develop', 'main', 'master')) {
         if ($b -eq $current -or -not (Test-BranchExists -RepoRoot $RepoRoot -Branch $b)) { continue }
         $mb = git -C $RepoRoot merge-base $b HEAD 2>$null
         if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($mb)) { continue }
         $t = [long](git -C $RepoRoot show -s --format=%ct $mb 2>$null)
-        if ($t -gt $bestTime) { $best = $b; $bestTime = $t }
+        if ($t -gt $bestTime) { $best = $b; $bestTime = $t; $tied = $false }
+        elseif ($t -eq $bestTime) { $tied = $true }
     }
+    # A tie is ambiguous: the skill's Base branch section asks the user, so no candidate.
+    if ($tied) { return $null }
     return $best
 }
 

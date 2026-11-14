@@ -208,6 +208,28 @@ Describe 'DriverStatus lifecycle' {
             New-DriverStatus -StatusPath $path -ProjectPath 'C:\p' -PlanFile 'p.md' | Out-Null
             (Get-DriverStatus -StatusPath $path).workBranch | Should Be 'mi-rama'
         }
+        It 'Set-DriverStatusBranch persiste baseBranch y New-DriverStatus lo preserva (resume)' {
+            $path = Join-Path $TestDrive 'status-base-set.json'
+            New-DriverStatus -StatusPath $path -ProjectPath 'C:\p' -PlanFile 'p.md' | Out-Null
+            Set-DriverStatusBranch -StatusPath $path -WorkBranch 'plan/x' -BaseBranch 'develop' | Out-Null
+            (Get-DriverStatus -StatusPath $path).baseBranch | Should Be 'develop'
+            New-DriverStatus -StatusPath $path -ProjectPath 'C:\p' -PlanFile 'p.md' | Out-Null
+            (Get-DriverStatus -StatusPath $path).baseBranch | Should Be 'develop'
+        }
+        It 'Set-DriverStatusBranch sin BaseBranch conserva la base si la rama no cambia' {
+            $path = Join-Path $TestDrive 'status-base-keep.json'
+            New-DriverStatus -StatusPath $path -ProjectPath 'C:\p' -PlanFile 'p.md' | Out-Null
+            Set-DriverStatusBranch -StatusPath $path -WorkBranch 'plan/x' -BaseBranch 'main' | Out-Null
+            Set-DriverStatusBranch -StatusPath $path -WorkBranch 'plan/x' | Out-Null
+            (Get-DriverStatus -StatusPath $path).baseBranch | Should Be 'main'
+        }
+        It 'Set-DriverStatusBranch sin BaseBranch descarta la base si la rama cambia' {
+            $path = Join-Path $TestDrive 'status-base-stale.json'
+            New-DriverStatus -StatusPath $path -ProjectPath 'C:\p' -PlanFile 'p.md' | Out-Null
+            Set-DriverStatusBranch -StatusPath $path -WorkBranch 'plan/x' -BaseBranch 'main' | Out-Null
+            Set-DriverStatusBranch -StatusPath $path -WorkBranch 'plan/y' | Out-Null
+            (Get-DriverStatus -StatusPath $path).baseBranch | Should BeNullOrEmpty
+        }
     }
 }
 

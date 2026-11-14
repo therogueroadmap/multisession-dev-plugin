@@ -81,10 +81,15 @@ Describe 'GitWorkspace' {
             git -C $repo checkout -q -b feat/x | Out-Null
             Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should Be 'main'
         }
-        It 'con empate gana el orden develop, main, master' {
+        It 'con empate de merge-base devuelve $null para que la skill pregunte' {
             $repo = New-TempRepo -Branches @('main', 'develop')
             git -C $repo checkout -q -b feat/x | Out-Null
-            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should Be 'develop'
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase $null | Should BeNullOrEmpty
+        }
+        It 'con empate la rama conocida sigue ganando' {
+            $repo = New-TempRepo -Branches @('main', 'develop')
+            git -C $repo checkout -q -b feat/x | Out-Null
+            Resolve-CloseBaseBranch -RepoRoot $repo -KnownBase 'develop' | Should Be 'develop'
         }
         It 'descarta la rama actual como conocida y como candidata' {
             $repo = New-TempRepo -Branches @('develop')
