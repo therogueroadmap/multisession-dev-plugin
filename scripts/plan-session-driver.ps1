@@ -210,27 +210,9 @@ Escribe `None.` si no hubo ola.
 - Workspace: borrado | pendiente
 - Pendiente humano: crear el PR de <rama de trabajo> contra <rama base>
 
-```
-gh pr create --base <rama base> --head <rama de trabajo> --title "<título>" --body-file "__PRBODY__"
-```
-
-La línea `- Pendiente humano:` y su bloque de código van solo cuando el cierre
-termina en COMPLETE (escríbelos antes de renombrar __DRAFT__ a __MARKER__); si
-terminas en BLOCKED, no los escribas ni escribas __PRBODY__.
-
-Reglas del comando del PR:
-- NO ejecutes el comando `gh pr create` ni hagas push: lo copiará y ejecutará
-  un humano.
-- El título sale del objetivo del plan, en una sola línea y sin comillas dobles
-  (si las tiene, sustitúyelas por comillas simples).
-- Si la base es solo candidata (el texto de la regla de la rama base dice que el
-  driver la estimó), pon antes del comando, dentro del bloque, la línea
-  `# base estimada por merge-base: confírmala antes de ejecutar`.
-- En COMPLETE, antes de renombrar __DRAFT__, escribe __PRBODY__ con el cuerpo
-  del PR en markdown: resumen del plan (objetivo), tareas con sus commits,
-  resultado de la revisión final y de la re-revisión, hallazgos residuales con
-  su ruling, resultado de la suite y rama base. No incluyas líneas de atribución
-  a Claude.
+La línea `- Pendiente humano:` va solo cuando el cierre termina en COMPLETE
+(escríbela antes de renombrar __DRAFT__ a __MARKER__); si terminas en BLOCKED,
+no la escribas.
 
 Después agrega siempre una sección `## Rulings` con todas las líneas `Ruling:`
 del ledger, en orden y textuales, más las que tomes en esta sesión: son
@@ -368,7 +350,6 @@ else { $null }
 # Borrador de trabajo de la sesion de cierre (pendiente 3): no es el marcador, que el
 # driver busca por su ruta exacta; la sesion lo renombra a marcador al terminar.
 $draftRelativeForPrompt = if ($markerRelativeForPrompt) { $markerRelativeForPrompt -replace '\.md$', '.draft.md' } else { $null }
-$prBodyRelativeForPrompt = if ($markerRelativeForPrompt) { $markerRelativeForPrompt -replace '\.md$', '.pr.md' } else { $null }
 
 # Prompt de nivel: mismo para bootstrap y continue. Cada sesión es de contexto
 # limpio, así que nombra el plan explícitamente cuando se conoce.
@@ -450,7 +431,7 @@ PLAN_STATUS: BLOCKED: <motivo breve>
 
 $CLOSE_PROMPT = $null
 if ($PlanFile) {
-    $CLOSE_PROMPT = $CLOSE_PROMPT_TEMPLATE.Replace('__PLAN__', $planRelativeForPrompt).Replace('__DRAFT__', $draftRelativeForPrompt).Replace('__MARKER__', $markerRelativeForPrompt).Replace('__PRBODY__', $prBodyRelativeForPrompt)
+    $CLOSE_PROMPT = $CLOSE_PROMPT_TEMPLATE.Replace('__PLAN__', $planRelativeForPrompt).Replace('__DRAFT__', $draftRelativeForPrompt).Replace('__MARKER__', $markerRelativeForPrompt)
 }
 
 # D7: archivado del status previo y herencia del historial. $iterBase es el
@@ -1651,16 +1632,6 @@ if ($finalStatus -eq 'DONE') {
     elseif ($markerRelativeForPrompt) { "la rama base registrada en ## Cierre de $markerRelativeForPrompt" }
     else { 'la rama base registrada en ## Cierre del marcador de revisión final' }
     Write-Host "PENDIENTE: crear el PR de $pendingBranch contra $pendingBase"
-    $prCommand = $null
-    if ($pendingBase -eq $closeBase -and $markerRelativeForPrompt) {
-        try {
-            $prLine = Get-Content -LiteralPath (Join-Path $repoRoot $markerRelativeForPrompt) -ErrorAction Stop | Where-Object { $_ -match '^gh pr create ' } | Select-Object -First 1
-            if ($prLine) { $prCommand = $prLine.Trim() }
-        } catch { $prCommand = $null }
-    }
-    if ($prCommand) { Write-Host $prCommand }
-    elseif ($markerRelativeForPrompt) { Write-Host "Comando listo para copiar en ## Cierre de $markerRelativeForPrompt" }
-    else { Write-Host 'Comando listo para copiar en ## Cierre del marcador de revisión final' }
 }
 
 if ($dashboard) {

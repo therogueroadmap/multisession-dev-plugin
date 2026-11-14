@@ -1661,8 +1661,6 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' {
         $p | Should Match ([regex]::Escape('.final-review-2026-10-27-falso.draft.md'))
         $p.Contains('__BASE__') | Should Be $false
         $p.Contains('__DRAFT__') | Should Be $false
-        $p.Contains('__PRBODY__') | Should Be $false
-        $p | Should Match ([regex]::Escape('.final-review-2026-10-27-falso.pr.md'))
     }
 
     It 'D1: transitorio, reintento con --resume y DONE, sin consumir el presupuesto' {
@@ -2807,21 +2805,6 @@ Describe 'plan-session-driver (Ola 2a: limits, params, phase y git)' {
         $text | Should Match ([regex]::Escape('PENDIENTE: crear el PR de $pendingBranch contra $pendingBase'))
         $text | Should Match ([regex]::Escape('la rama base registrada en ## Cierre de $markerRelativeForPrompt'))
         $text | Should Match ([regex]::Escape('El merge, el push y el PR los hace una persona'))
-    }
-
-    It '2a: el prompt de cierre pide el comando gh pr create sin ejecutarlo y el cuerpo en __PRBODY__' {
-        $closeStart = $text.IndexOf('$CLOSE_PROMPT_TEMPLATE = @''')
-        $closeStart | Should BeGreaterThan -1
-        foreach ($lit in @('__PRBODY__', 'gh pr create --base', '--body-file', 'NO ejecutes el comando `gh pr create` ni hagas push', '# base estimada por merge-base: confírmala antes de ejecutar', 'No incluyas líneas de atribución')) {
-            $text.IndexOf($lit, $closeStart) | Should BeGreaterThan $closeStart
-        }
-        $text | Should Match ([regex]::Escape(".Replace('__PRBODY__', `$prBodyRelativeForPrompt)"))
-        $text | Should Match ([regex]::Escape("'.pr.md'"))
-    }
-
-    It '2a: el mensaje final imprime el comando gh pr create o la variante Comando listo para copiar' {
-        $text | Should Match ([regex]::Escape("'^gh pr create '"))
-        $text | Should Match ([regex]::Escape('Comando listo para copiar en ## Cierre de $markerRelativeForPrompt'))
     }
 
     It '2a: limits y params se publican una vez, tras el presupuesto y antes del bucle, con aviso si fallan' {
