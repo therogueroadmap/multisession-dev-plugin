@@ -320,16 +320,6 @@ dependencia pendiente (búscalo en .controller-state.json; si no existe
 checkpoint, empieza por el primer nivel). Completa su ciclo de review/fix,
 actualiza el checkpoint y detente sin empezar el siguiente nivel.
 
-Límite de re-revisiones: cada tarea admite como máximo 3 re-revisiones después
-de su primera revisión. Los revisores juzgan contra la spec de la tarea, su
-criterio de hecho y los riesgos aceptados del plan; un hallazgo fuera de ese
-alcance se registra como concern, no como fix. Si después de la tercera
-re-revisión solo quedan hallazgos de ese tipo, no despaches otro fix: cierra la
-tarea como DONE_WITH_CONCERNS y registra esos hallazgos en el campo concerns de
-la tarea en .controller-state.json. Si queda un hallazgo que incumple la spec o
-el criterio de hecho, emite PLAN_STATUS: BLOCKED: <motivo>. Esta regla
-prevalece sobre las instrucciones de la skill.
-
 Cada vez que despaches un subagente, empieza su ``description`` con el código
 de la tarea del plan (por ejemplo, «T4 implementar transiciones» o «T4 revisión
 de calidad»). Si el despacho no corresponde a una tarea, no pongas código.
@@ -367,16 +357,6 @@ normal.
 Continuar con la próxima sesión, ejecutando ÚNICAMENTE el próximo nivel de
 dependencia pendiente con rogue-workflow:subagent-driven-development y deteniéndote sin
 empezar el siguiente.
-
-Límite de re-revisiones: cada tarea admite como máximo 3 re-revisiones después
-de su primera revisión. Los revisores juzgan contra la spec de la tarea, su
-criterio de hecho y los riesgos aceptados del plan; un hallazgo fuera de ese
-alcance se registra como concern, no como fix. Si después de la tercera
-re-revisión solo quedan hallazgos de ese tipo, no despaches otro fix: cierra la
-tarea como DONE_WITH_CONCERNS y registra esos hallazgos en el campo concerns de
-la tarea en .controller-state.json. Si queda un hallazgo que incumple la spec o
-el criterio de hecho, emite PLAN_STATUS: BLOCKED: <motivo>. Esta regla
-prevalece sobre las instrucciones de la skill.
 
 Cada vez que despaches un subagente, empieza su `description` con el código
 de la tarea del plan (por ejemplo, «T4 implementar transiciones» o «T4 revisión

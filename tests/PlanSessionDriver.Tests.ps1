@@ -820,18 +820,10 @@ Describe 'plan-session-driver (Ola 1b: dashboard Python, I1, I2, B-4, D-A3)' {
         }
     }
 
-    It 'DT-19: el limite de re-revisiones esta en las dos variantes del prompt de nivel, entre el ancla y el modo headless' {
+    It 'DT-19: las dos variantes del prompt de nivel dejan el tope de re-revisiones a fix-loop.md' {
         $o = [string][char]0xF3
         $anchorMarker = ([string][char]0xDA) + 'NICAMENTE el pr' + $o + 'ximo nivel'
         $limite = 'L' + [string][char]0xED + 'mite de re-revisiones'
-        $headless = 'Esta sesi' + $o + 'n corre en modo headless'
-        $requeridos = @(
-            ('como m' + [string][char]0xE1 + 'ximo 3 re-revisiones'),
-            'DONE_WITH_CONCERNS',
-            'campo concerns',
-            'prevalece sobre las instrucciones de la skill'
-        )
-
         $strings = @($ast.FindAll({ param($n)
                     ($n -is [System.Management.Automation.Language.ExpandableStringExpressionAst] -or
                     $n -is [System.Management.Automation.Language.StringConstantExpressionAst]) -and
@@ -839,16 +831,9 @@ Describe 'plan-session-driver (Ola 1b: dashboard Python, I1, I2, B-4, D-A3)' {
         $strings.Count | Should Be 2
         foreach ($s in $strings) {
             $v = $s.Value -replace '\s+', ' '
-            $anchor = if ($v.Contains('detente sin empezar el siguiente nivel.')) { 'detente sin empezar el siguiente nivel.' } else { 'empezar el siguiente.' }
-            $iAnchor = $v.IndexOf($anchor, [System.StringComparison]::Ordinal)
-            $iLimite = $v.IndexOf($limite, [System.StringComparison]::Ordinal)
-            $iHeadless = $v.IndexOf($headless, [System.StringComparison]::Ordinal)
-            $iAnchor | Should Not Be -1
-            $iLimite | Should Not Be -1
-            $iHeadless | Should Not Be -1
-            ($iLimite -gt $iAnchor) | Should Be $true
-            ($iLimite -lt $iHeadless) | Should Be $true
-            foreach ($r in $requeridos) { $v.Contains($r) | Should Be $true }
+            $v.Contains($limite) | Should Be $false
+            $v.Contains('prevalece sobre las instrucciones de la skill') | Should Be $false
+            $v.Contains('DONE_WITH_CONCERNS') | Should Be $false
         }
     }
 }
