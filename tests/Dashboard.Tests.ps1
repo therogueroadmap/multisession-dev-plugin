@@ -106,7 +106,7 @@ Describe 'dashboard: contrato del servidor con fixtures (1c)' {
                 }
             }
             $bar = @($v.bars)[0]
-            (($bar.PSObject.Properties.Name | Sort-Object) -join ',') | Should Be 'description,endedAt,id,lastTool,role,startedAt,status,subagentType,task,tokens,toolUses'
+            (($bar.PSObject.Properties.Name | Sort-Object) -join ',') | Should Be 'description,endedAt,id,lastTool,model,modelOverride,role,startedAt,status,subagentType,task,tokens,toolUses'
             $t4 = @($v.tasks) | Where-Object { $_.code -eq 'T4' }
             $t4.cycles | Should Be 2
             $t4.reworkAlert | Should Be $false
@@ -2306,6 +2306,25 @@ Describe 'dashboard.html (1c): actividad V1-V6' {
         $r.t1 | Should Be '950'
         $r.t2 | Should Be '41 k'
         $r.t3 | Should Be ([string][char]0x2014)
+    }
+
+    It '7: rol review, modelo con sobreescritura y fila en vivo con modelo' -Skip:$noNode {
+        $r = Invoke-DashboardPure @'
+({
+  review: roleLabel('review'),
+  conFlecha: modelText({ model: 'opus', modelOverride: true }),
+  sinFlecha: modelText({ model: 'sonnet', modelOverride: false }),
+  sinDato: modelText({ model: null }),
+  fila: liveRows({ available: true, session: { live: true }, live: ['b1'],
+    bars: [{ id: 'b1', startedAt: '2026-10-15T20:10:00Z', model: 'opus', modelOverride: true }] },
+    Date.parse('2026-10-15T20:14:00Z'))[0].model
+})
+'@
+        $r.review | Should Be ('revisi' + [string][char]0xF3 + 'n')
+        $r.conFlecha | Should Be ('opus ' + [string][char]0x2191)
+        $r.sinFlecha | Should Be 'sonnet'
+        $r.sinDato | Should BeNullOrEmpty
+        $r.fila | Should Be ('opus ' + [string][char]0x2191)
     }
 
     It 'sin projectPath, la cabecera y resumeCommand no muestran undefined' -Skip:$noNode {

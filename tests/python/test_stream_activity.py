@@ -118,7 +118,7 @@ def test_otras(cargado):
     _, view = cargado
     b = _barra(view, "syn-otras")
     assert b["task"] == "otras"
-    assert b["role"] == "other"
+    assert b["role"] == "review"
     assert b["startedAt"] == "2026-10-15T20:20:00.000Z"
     assert b["endedAt"] == "2026-10-15T20:21:00.000Z"
     assert b["status"] == "completed"
@@ -427,3 +427,78 @@ def test_rendimiento(fixture_path, tmp_path):
         tiempos.append(time.perf_counter() - t0)
     incremental = min(tiempos)
     assert incremental < 0.05, incremental
+
+
+def _agente(tool_use_id, **entrada):
+    contenido = [{"type": "tool_use", "id": tool_use_id, "name": "Agent", "input": entrada}]
+    obj = {"type": "assistant", "message": {"role": "assistant", "content": contenido},
+           "timestamp": TS}
+    return json.dumps(obj, separators=(",", ":")).encode("utf-8") + b"\n"
+
+
+def _subagente(parent_id, model):
+    return (b'{"type":"assistant","message":{"model":"' + model.encode() +
+            b'","role":"assistant","content":[]},"parent_tool_use_id":"' + parent_id.encode() +
+            b'","timestamp":"' + TS.encode() + b'"}\n')
+
+
+@pytest.mark.parametrize("tipo,descripcion,rol", [
+    ("rogue-workflow:implementer", "T1 implementar", "impl"),
+    ("rogue-workflow:fix-agent", "T1 fix", "fix"),
+    ("rogue-workflow:reviewer", "T1 revisión de spec", "spec"),
+    ("rogue-workflow:reviewer", "T1 revisión de calidad", "quality"),
+    ("rogue-workflow:reviewer", "T1 revisión de spec y calidad", "review"),
+    ("rogue-workflow:reviewer", "T1 re-revisión", "review"),
+    ("reviewer", "T1 re-revisión", "review"),
+    ("implementer", "T1 implementar", "impl"),
+    ("Explore", "T1 buscar", "other"),
+])
+def test_rol_con_y_sin_prefijo(tipo, descripcion, rol):
+    st = sa.new_state()
+    sa.feed(st, _started("a1", descripcion, tipo))
+    assert sa.to_view(st, NOW)["bars"][0]["role"] == rol
+
+
+def test_revision_combinada_cierra_la_tarea_y_cuenta_ciclos():
+    st = sa.new_state()
+    sa.feed(st, _started("i1", "T1 implementar", "rogue-workflow:implementer")
+            + _updated("i1", status="completed", end_time=1760558400000)
+            + _started("r1", "T1 revisión de spec y calidad", "rogue-workflow:reviewer")
+            + _updated("r1", status="completed", end_time=1760558460000)
+            + _started("f1", "T1 fix", "rogue-workflow:fix-agent")
+            + _updated("f1", status="completed", end_time=1760558520000)
+            + _started("r2", "T1 re-revisión", "rogue-workflow:reviewer")
+            + _updated("r2", status="completed", end_time=1760558580000))
+    t1 = sa.to_view(st, NOW)["tasks"][0]
+    assert [s["role"] for s in t1["stages"]] == ["impl", "review", "fix", "review"]
+    assert [s["state"] for s in t1["stages"]] == ["ok", "ko", "ok", "ok"]
+    assert t1["cycles"] == 2
+    assert t1["done"] is True
+
+
+def test_modelo_efectivo_y_sobreescritura():
+    st = sa.new_state()
+    sa.feed(st, _agente("toolu_a", subagent_type="rogue-workflow:reviewer",
+                        description="T1 revisión", model="opus")
+            + _agente("toolu_b", subagent_type="rogue-workflow:implementer",
+                      description="T2 implementar")
+            + _started("a1", "T1 revisión", "rogue-workflow:reviewer", tool_use_id="toolu_a")
+            + _started("b1", "T2 implementar", "rogue-workflow:implementer", tool_use_id="toolu_b")
+            + _subagente("toolu_a", "claude-opus-5-5")
+            + _subagente("toolu_b", "claude-sonnet-5-5"))
+    view = sa.to_view(st, NOW)
+    a = _barra(view, "a1")
+    b = _barra(view, "b1")
+    assert (a["model"], a["modelOverride"]) == ("opus", True)
+    assert (b["model"], b["modelOverride"]) == ("sonnet", False)
+
+
+def test_modelo_visto_antes_del_task_started_y_sin_datos():
+    st = sa.new_state()
+    sa.feed(st, _subagente("toolu_c", "claude-haiku-4-5")
+            + _started("c1", "T3 fix", "rogue-workflow:fix-agent", tool_use_id="toolu_c")
+            + _started("d1", "T4 implementar", "rogue-workflow:implementer"))
+    view = sa.to_view(st, NOW)
+    assert _barra(view, "c1")["model"] == "haiku"
+    assert _barra(view, "d1")["model"] is None
+    assert _barra(view, "d1")["modelOverride"] is False

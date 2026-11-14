@@ -16,6 +16,10 @@ from pathlib import Path
 PREFIX_RE = re.compile(rb'^\{"type":"([a-z_]+)"(?:,"subtype":"([a-z_]+)")?')
 TIMESTAMP_RE = re.compile(rb'"timestamp":"([^"]+)"')
 AGENT_MARK = b'"name":"Agent"'
+# Linea assistant de un subagente: empieza con el modelo efectivo y lleva el id del despacho.
+SUBAGENT_MODEL_RE = re.compile(rb'^\{"type":"assistant","message":\{"model":"([^"]+)"')
+PARENT_RE = re.compile(rb'"parent_tool_use_id":"([^"]+)"')
+MODEL_FAMILIES = ("opus", "sonnet", "haiku", "fable")
 TASK_SUBTYPES = frozenset(
     {"task_started", "task_progress", "task_updated", "task_notification", "vcs_state_changed"}
 )
@@ -38,6 +42,8 @@ class Bar:
     tokens: int | None = None
     toolUses: int | None = None
     lastTool: str | None = None
+    model: str | None = None
+    modelOverride: bool = False
 
 
 @dataclass
@@ -47,6 +53,9 @@ class State:
     last_ts: str | None = None
     agent_ts: dict[str, str] = field(default_factory=dict)
     bars: dict[str, Bar] = field(default_factory=dict)
+    agent_model: dict[str, str] = field(default_factory=dict)  # tool_use_id -> modelo sobreescrito
+    tool_bar: dict[str, str] = field(default_factory=dict)     # tool_use_id -> id de la barra
+    seen_model: dict[str, str] = field(default_factory=dict)   # modelo visto antes del task_started
     commits: list[dict] = field(default_factory=list)
     quota: dict | None = None
     events: int = 0
@@ -64,17 +73,34 @@ def _task_code(description: str | None) -> str:
     return f"T{int(m.group(1))}" if m else OTHER_TASK
 
 
+def _base_type(subagent_type: str | None) -> str | None:
+    """Quita el prefijo de plugin: 'rogue-workflow:reviewer' -> 'reviewer'."""
+    if subagent_type is None:
+        return None
+    return subagent_type.rsplit(":", 1)[-1]
+
+
+def _short_model(model: str) -> str:
+    low = model.lower()
+    return next((f for f in MODEL_FAMILIES if f in low), model)
+
+
 def _role(subagent_type: str | None, description: str | None) -> str:
-    if subagent_type == "implementer":
+    base = _base_type(subagent_type)
+    if base == "implementer":
         return "impl"
-    if subagent_type == "fix-agent":
+    if base == "fix-agent":
         return "fix"
-    if subagent_type == "reviewer":
+    if base == "reviewer":
         low = (description or "").lower()
-        if "spec" in low:
+        spec = "spec" in low
+        quality = "calidad" in low or "quality" in low
+        if spec and not quality:
             return "spec"
-        if "calidad" in low or "quality" in low:
+        if quality and not spec:
             return "quality"
+        # Revision combinada (spec y calidad) o re-revision sin etiqueta.
+        return "review"
     return "other"
 
 
@@ -127,6 +153,8 @@ def _on_task_started(st: State, ev: dict) -> None:
     if task_id in st.bars:
         return
     started = st.agent_ts.get(tool_use_id) if tool_use_id else None
+    override = st.agent_model.get(tool_use_id) if tool_use_id else None
+    seen = st.seen_model.pop(tool_use_id, None) if tool_use_id else None
     st.bars[task_id] = Bar(
         id=task_id,
         task=_task_code(description),
@@ -134,7 +162,11 @@ def _on_task_started(st: State, ev: dict) -> None:
         subagentType=subagent_type,
         description=description,
         startedAt=started or st.last_ts,
+        model=seen or override,
+        modelOverride=override is not None,
     )
+    if tool_use_id:
+        st.tool_bar[tool_use_id] = task_id
 
 
 def _on_task_progress(st: State, ev: dict) -> None:
@@ -272,6 +304,7 @@ def _process_conversation(st: State, line: bytes) -> None:
     ts_match = TIMESTAMP_RE.search(line)
     ts = ts_match.group(1).decode("utf-8", errors="replace") if ts_match else st.last_ts
     agent_ids: list[str] = []
+    overrides: dict[str, str] = {}
     if AGENT_MARK in line:
         obj = _load(line)
         content = obj["message"]["content"]
@@ -284,10 +317,29 @@ def _process_conversation(st: State, line: bytes) -> None:
                     and isinstance(block.get("id"), str)
                 ):
                     agent_ids.append(block["id"])
+                    entrada = block.get("input")
+                    model = entrada.get("model") if isinstance(entrada, dict) else None
+                    if isinstance(model, str) and model:
+                        overrides[block["id"]] = _short_model(model)
+    effective = None
+    sub = SUBAGENT_MODEL_RE.match(line)
+    if sub:
+        parent = PARENT_RE.search(line)
+        if parent:
+            effective = (parent.group(1).decode("utf-8", errors="replace"),
+                         _short_model(sub.group(1).decode("utf-8", errors="replace")))
     st.last_ts = ts
     if ts is not None:
         for tool_use_id in agent_ids:
             st.agent_ts[tool_use_id] = ts
+    st.agent_model.update(overrides)
+    if effective is not None:
+        parent_id, model = effective
+        bar_id = st.tool_bar.get(parent_id)
+        if bar_id is not None:
+            st.bars[bar_id].model = model
+        else:
+            st.seen_model[parent_id] = model
 
 
 def _process_line(st: State, line: bytes) -> bool:
@@ -368,7 +420,7 @@ def _stage_states(ordered: list[Bar], session: dict | None) -> list[str]:
     states = []
     for i, bar in enumerate(ordered):
         later = ordered[i + 1:]
-        if bar.role in ("spec", "quality") and any(
+        if bar.role in ("spec", "quality", "review") and any(
             b.role == "fix" or b.role == bar.role for b in later
         ):
             states.append("ko")
@@ -388,7 +440,7 @@ def _build_task(code: str, bars: list[tuple[int, Bar]], session: dict | None) ->
     ]
     fixes = sum(1 for b in ordered if b.role == "fix")
     repeats = sum(
-        max(0, sum(1 for b in ordered if b.role == role) - 1) for role in ("spec", "quality")
+        max(0, sum(1 for b in ordered if b.role == role) - 1) for role in ("spec", "quality", "review")
     )
     cycles = fixes + repeats
     last = ordered[-1]
@@ -397,7 +449,7 @@ def _build_task(code: str, bars: list[tuple[int, Bar]], session: dict | None) ->
         "stages": stages,
         "cycles": cycles,
         "reworkAlert": cycles > 2,
-        "done": last.role == "quality" and states[-1] == "ok",
+        "done": last.role in ("quality", "review") and states[-1] == "ok",
     }
 
 

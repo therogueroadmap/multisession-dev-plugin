@@ -606,8 +606,8 @@
       };
     }
 
-    const ROLE_LABELS = { impl: 'implementer', spec: 'spec', quality: 'calidad', fix: 'fix', other: 'otro' };
-    const BAR_CLASSES = { impl: 't-impl', spec: 't-rev', quality: 't-rev', fix: 't-fix', other: 't-other' };
+    const ROLE_LABELS = { impl: 'implementer', spec: 'spec', quality: 'calidad', review: 'revisión', fix: 'fix', other: 'otro' };
+    const BAR_CLASSES = { impl: 't-impl', spec: 't-rev', quality: 't-rev', review: 't-rev', fix: 't-fix', other: 't-other' };
     const TICK_STEPS_MIN = [1, 2, 5, 10, 15, 30, 60, 120];
     const MAX_TICKS = 8;
     const MIN_BAR_PCT = 0.5;
@@ -615,6 +615,12 @@
     function roleLabel(role) {
       if (role == null) return ROLE_LABELS.other;
       return Object.prototype.hasOwnProperty.call(ROLE_LABELS, role) ? ROLE_LABELS[role] : String(role);
+    }
+
+    // Modelo de un despacho: el efectivo, con flecha si el despacho lo sobreescribio; null sin dato.
+    function modelText(bar) {
+      if (!bar || typeof bar.model !== 'string' || !bar.model) return null;
+      return bar.model + (bar.modelOverride === true ? ' ↑' : '');
     }
 
     // Etapa de una tarea -> texto del chip y su clase CSS.
@@ -719,7 +725,8 @@
         width = round2(width);
         const role = b.role;
         const cls = Object.prototype.hasOwnProperty.call(BAR_CLASSES, role) ? BAR_CLASSES[role] : 't-other';
-        const title = (b.description || 'sin descripción') + ' · ' + roleLabel(role) + ' · ' +
+        const mt = modelText(b);
+        const title = (b.description || 'sin descripción') + ' · ' + roleLabel(role) + (mt ? ' · ' + mt : '') + ' · ' +
           clockLabel(s) + ' - ' + (open ? (live ? 'en curso' : 'sin cierre') : clockLabel(e));
         laneFor(b.task == null || b.task === '' ? 'otras' : b.task).bars.push({
           id: b.id, leftPct: left, widthPct: width, cls,
@@ -780,6 +787,7 @@
           description: b.description == null ? null : b.description,
           lastTool: b.lastTool == null ? null : b.lastTool,
           tokens: b.tokens == null ? null : b.tokens,
+          model: modelText(b),
           elapsedMs: s == null ? null : nowMs - s, unclosed: !live, startMs: s
         });
       }
@@ -790,7 +798,7 @@
       });
       return rows.map(r => ({
         id: r.id, subagentType: r.subagentType, task: r.task, description: r.description,
-        lastTool: r.lastTool, tokens: r.tokens, elapsedMs: r.elapsedMs, unclosed: r.unclosed
+        lastTool: r.lastTool, tokens: r.tokens, model: r.model, elapsedMs: r.elapsedMs, unclosed: r.unclosed
       }));
     }
 
@@ -1813,7 +1821,7 @@
       }
       $('live-activity').innerHTML = head + rows.map(r => {
         const when = r.unclosed ? 'sin cierre' : (formatDuration(r.elapsedMs) || '—');
-        return `<div class="act"><div class="who"><b>${escapeHtml(r.subagentType || 'subagente')} · ${escapeHtml(r.task == null ? 'otras' : r.task)}</b>` +
+        return `<div class="act"><div class="who"><b>${escapeHtml(r.subagentType || 'subagente')}${r.model ? ' · ' + escapeHtml(r.model) : ''} · ${escapeHtml(r.task == null ? 'otras' : r.task)}</b>` +
           `<span>${escapeHtml(when)}</span></div>` +
           `<div class="what">${escapeHtml(r.description || '')}</div>` +
           `<div class="what">${escapeHtml(r.lastTool || '—')} · ${escapeHtml(formatTokens(r.tokens))} tokens</div></div>`;
