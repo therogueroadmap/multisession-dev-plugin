@@ -218,9 +218,10 @@ Describe 'plan-session-driver (Fase 4: parametrizacion y telemetria)' {
         (Get-DriverParam 'Model').DefaultValue.Extent.Text | Should Be "'claude-opus-5-5'"
         # -Model '' se rechaza al arrancar, no despues de correr la sesion.
         ((Get-DriverParam 'Model').Attributes | ForEach-Object { $_.Extent.Text }) -join ' ' | Should Match 'ValidateNotNullOrEmpty\(\)'
+        (Get-DriverParam 'LevelEffort').DefaultValue.Extent.Text | Should Be "'medium'"
+        (Get-DriverParam 'CloseEffort').DefaultValue.Extent.Text | Should Be "'high'"
         foreach ($name in @('LevelEffort', 'CloseEffort')) {
             $p = Get-DriverParam $name
-            $p.DefaultValue.Extent.Text | Should Be "'high'"
             ($p.Attributes | ForEach-Object { $_.Extent.Text }) -join ' ' | Should Match "ValidateSet\('low', 'medium', 'high', 'xhigh', 'max'\)"
         }
     }
@@ -1823,7 +1824,7 @@ Describe 'plan-session-driver (Ola 1b-driver: punta a punta con claude falso)' -
 
         $p = $run.Status.params
         $p.model | Should Be 'claude-opus-5-5'
-        $p.levelEffort | Should Be 'high'
+        $p.levelEffort | Should Be 'medium'
         $p.closeEffort | Should Be 'high'
         (@($p.retryBackoffSeconds) -join ',') | Should Be '0'
         $p.livenessTimeoutMinutes | Should Be 1

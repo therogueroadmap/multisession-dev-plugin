@@ -54,10 +54,11 @@ param(
     [string]$Model = 'claude-opus-5-5',
 
     # Effort de las sesiones de nivel (bootstrap/continue) y de la sesion de
-    # cierre. Bajar el de cierre es arriesgado: la revision final es la ultima
-    # compuerta antes de DONE (sesion 6ad16ad4).
+    # cierre. Los niveles van en medium por defecto (coste); el cierre queda en
+    # high: bajarlo es arriesgado, la revision final es la ultima compuerta
+    # antes de DONE (sesion 6ad16ad4).
     [ValidateSet('low', 'medium', 'high', 'xhigh', 'max')]
-    [string]$LevelEffort = 'high',
+    [string]$LevelEffort = 'medium',
 
     [ValidateSet('low', 'medium', 'high', 'xhigh', 'max')]
     [string]$CloseEffort = 'high',
