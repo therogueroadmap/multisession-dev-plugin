@@ -8,7 +8,7 @@ It expects plans with a Dependency Map (a `Task | Depends On | Level` table), li
 
 ## Status
 
-Version 0.1.0. In progress: it is in the [catalog](https://github.com/therogueroadmap/marketplace),
+Version 0.1.1. In progress: it is in the [catalog](https://github.com/therogueroadmap/marketplace),
 and I am still testing it against real plans.
 I publish it to work on it in the open.
 

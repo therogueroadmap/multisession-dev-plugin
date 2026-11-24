@@ -1,7 +1,7 @@
 {
   "name": "multisession-dev-plugin",
   "description": "Runs a long implementation plan across chained headless Claude Code sessions, one per dependency level, with a live dashboard.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "author": {
     "name": "José R. Pérez Sandó",
     "email": "contact@therogueroadmap.com"

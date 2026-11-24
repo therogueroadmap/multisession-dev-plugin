@@ -2,8 +2,13 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-24
+
 ### Added
 - Plugin icon (`.claude-plugin/icon.png`).
+
+### Changed
+- The driver's `-LevelEffort` default is now `medium` (was `high`), so level sessions cost less. `-CloseEffort` stays at `high`: the close session's final review is the last gate before DONE.
 
 ## [0.1.0] - 2026-11-14
 
