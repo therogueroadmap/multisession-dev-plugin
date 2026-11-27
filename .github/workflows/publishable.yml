@@ -1,5 +1,7 @@
 name: publishable
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   publishable:
     uses: therogueroadmap/.github/.github/workflows/publishable.yml@main
